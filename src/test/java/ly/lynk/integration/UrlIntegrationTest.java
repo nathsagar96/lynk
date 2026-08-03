@@ -1,6 +1,7 @@
 package ly.lynk.integration;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -9,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Duration;
 import ly.lynk.TestcontainersConfiguration;
 import ly.lynk.click.ClickRepository;
 import ly.lynk.url.UrlRepository;
@@ -70,8 +72,8 @@ class UrlIntegrationTest {
                 .andExpect(status().isFound())
                 .andExpect(header().string("Location", "https://example.com"));
 
-        // Wait briefly for async click event to persist
-        Thread.sleep(500);
+        // Wait for async click event to persist
+        await().atMost(Duration.ofSeconds(5)).until(() -> clickRepository.count() == 1L);
 
         // Verify click was recorded
         assertThat(clickRepository.count()).isEqualTo(1);
@@ -143,16 +145,13 @@ class UrlIntegrationTest {
     @Test
     void shouldDeleteOwnUrl() throws Exception {
         // Create a URL
-        String responseBody = mockMvc.perform(post("/api/v1/urls")
+        mockMvc.perform(post("/api/v1/urls")
                         .with(jwt().jwt(j -> j.subject("user-1")))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"url": "https://example.com", "alias": "del-me"}
                                 """))
-                .andExpect(status().isCreated())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
+                .andExpect(status().isCreated());
 
         // Delete it
         mockMvc.perform(delete("/api/v1/urls/del-me").with(jwt().jwt(j -> j.subject("user-1"))))
