@@ -14,6 +14,8 @@ import org.springframework.validation.annotation.Validated;
 public record LynkProperties(
         @Valid SnowflakeProperties snowflake, @Valid UrlProperties url) {
 
+    @ConfigurationProperties(prefix = "lynk.snowflake")
+    @Validated
     public record SnowflakeProperties(
             @NotNull @Min(0) @Max(1023) Integer machineId,
             @NotNull Instant epoch) {}
