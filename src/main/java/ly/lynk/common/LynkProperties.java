@@ -7,8 +7,10 @@ import jakarta.validation.constraints.NotNull;
 import java.time.Duration;
 import java.time.Instant;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.validation.annotation.Validated;
 
 @ConfigurationProperties(prefix = "lynk")
+@Validated
 public record LynkProperties(
         @Valid SnowflakeProperties snowflake, @Valid UrlProperties url) {
 
