@@ -1,8 +1,12 @@
 package ly.lynk.shortcode;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Instant;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -69,5 +73,83 @@ class SnowflakeIdGeneratorTest {
         }
 
         assertThat(ids).hasSize(threadCount * idsPerThread);
+    }
+
+    @Test
+    void shouldThrowWhenClockMovesBackwards() {
+        long t = Instant.parse("2025-01-02T00:00:00Z").toEpochMilli();
+        var times = new ArrayDeque<>(List.of(t, t - 100));
+        var fake = new FakeClockGenerator(snowflakeProperties(), times);
+
+        fake.nextId();
+
+        assertThatThrownBy(fake::nextId).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void shouldKeepGeneratingMonotonicIdsWhenSequenceOverflowsSameMillisecond() {
+        long t = Instant.parse("2025-01-02T00:00:00Z").toEpochMilli();
+        var times = new ArrayDeque<Long>();
+        for (int i = 0; i < 4_096; i++) {
+            times.add(t);
+        }
+        for (int i = 0; i < 1_000; i++) {
+            times.add(t + 1);
+        }
+        var fake = new FakeClockGenerator(snowflakeProperties(), times);
+
+        long prev = fake.nextId();
+        for (int i = 0; i < 5_000; i++) {
+            long next = fake.nextId();
+            assertThat(next).isGreaterThan(prev);
+            prev = next;
+        }
+    }
+
+    @Test
+    void shouldRejectFutureEpoch() {
+        var futureProps = new LynkProperties.SnowflakeProperties(1, Instant.parse("2025-01-01T00:00:00Z"));
+        assertThatThrownBy(() -> new PastClockGenerator(futureProps)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    private static LynkProperties.SnowflakeProperties snowflakeProperties() {
+        return new LynkProperties.SnowflakeProperties(1, Instant.parse("2025-01-01T00:00:00Z"));
+    }
+
+    private static final class FakeClockGenerator extends SnowflakeIdGenerator {
+
+        private final Deque<Long> times;
+        private long lastReturned = -1L;
+
+        FakeClockGenerator(LynkProperties.SnowflakeProperties props, Deque<Long> times) {
+            super(props);
+            this.times = times;
+        }
+
+        @Override
+        protected long currentTimeMillis() {
+            if (times == null) {
+                return Instant.parse("2025-01-01T00:00:00Z").toEpochMilli();
+            }
+            if (times.isEmpty()) {
+                return lastReturned;
+            }
+            lastReturned = times.pollFirst();
+            return lastReturned;
+        }
+    }
+
+    private static final class PastClockGenerator extends SnowflakeIdGenerator {
+
+        private static final long PAST = Instant.parse("2020-01-01T00:00:00Z").toEpochMilli();
+
+        PastClockGenerator(LynkProperties.SnowflakeProperties props) {
+            super(props);
+        }
+
+        @Override
+        protected long currentTimeMillis() {
+            return PAST;
+        }
     }
 }

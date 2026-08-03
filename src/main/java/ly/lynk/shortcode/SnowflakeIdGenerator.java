@@ -29,6 +29,12 @@ public class SnowflakeIdGenerator {
             throw new IllegalArgumentException(
                     "Machine ID must be between 0 and %d, got: %d".formatted(MAX_MACHINE_ID, machineId));
         }
+
+        long now = currentTimeMillis();
+        if (epochMillis > now) {
+            throw new IllegalArgumentException("Epoch must be in the past, configured epoch %d is after current time %d"
+                    .formatted(epochMillis, now));
+        }
     }
 
     public long nextId() {

@@ -27,7 +27,7 @@ public class ClickEventListener {
             clickRepository.save(clickEntity);
             log.debug("Persisted click for shortcode: {}", event.shortcode());
         } catch (Exception ex) {
-            log.warn("Failed to persist click for shortcode: {}. Error: {}", event.shortcode(), ex.getMessage());
+            log.warn("Failed to persist click for shortcode: {}", event.shortcode(), ex);
         }
     }
 }
