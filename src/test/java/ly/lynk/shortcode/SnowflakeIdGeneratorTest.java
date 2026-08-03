@@ -90,7 +90,7 @@ class SnowflakeIdGeneratorTest {
     void shouldKeepGeneratingMonotonicIdsWhenSequenceOverflowsSameMillisecond() {
         long t = Instant.parse("2025-01-02T00:00:00Z").toEpochMilli();
         var times = new ArrayDeque<Long>();
-        for (int i = 0; i < 4_096; i++) {
+        for (int i = 0; i < 4_097; i++) {
             times.add(t);
         }
         for (int i = 0; i < 1_000; i++) {
