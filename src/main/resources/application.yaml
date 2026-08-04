@@ -1,25 +1,65 @@
 spring:
   application:
     name: lynk
+  main:
+    keep-alive: true
   threads:
     virtual:
       enabled: true
+  datasource:
+    hikari:
+      maximum-pool-size: 50
+      minimum-idle: 5
+      connection-timeout: 20000
+      idle-timeout: 300000
+      max-lifetime: 1200000
   jpa:
     hibernate:
       ddl-auto: validate
     open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 30
+          fetch_size: 50
+        order_inserts: true
+        order_updates: true
   mvc:
     problemdetails:
       enabled: true
+  jackson:
+    default-property-inclusion: non_null
   security:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8080/realms/lynk}
+          issuer-uri: ${KEYCLOAK_ISSUER_URI}
+
+server:
+  compression:
+    enabled: true
+    mime-types:
+      - application/json
+      - application/problem+json
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus,info
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    tags:
+      application: ${spring.application.name}
+  observations:
+    annotations:
+      enabled: true
 
 app:
   snowflake:
-    machine-id: ${LYNK_MACHINE_ID:0}
+    machine-id: ${MACHINE_ID}
     epoch: "2025-01-01T00:00:00Z"
   url:
     default-expiry: 365d

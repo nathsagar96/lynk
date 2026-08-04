@@ -28,7 +28,7 @@ import tools.jackson.databind.ObjectMapper;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)
-class UrlIntegrationTest {
+class UrlIT {
 
     @Autowired
     private MockMvc mockMvc;

@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: lynk
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  mvc:
+    problemdetails:
+      enabled: true
+  jackson:
+    default-property-inclusion: non_null
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:8080/realms/lynk
+
+app:
+  snowflake:
+    machine-id: 0
+    epoch: "2025-01-01T00:00:00Z"
+  url:
+    default-expiry: 365d

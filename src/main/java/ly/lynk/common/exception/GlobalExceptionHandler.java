@@ -52,7 +52,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             @NonNull HttpHeaders headers,
             @NonNull HttpStatusCode status,
             @NonNull WebRequest request) {
-        ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(status, "Validation failed");
+        ProblemDetail problemDetail =
+                ProblemDetail.forStatusAndDetail(status, "One or more fields have invalid values");
         problemDetail.setTitle("ValidationError");
         problemDetail.setProperty("timestamp", Instant.now());
         var fieldErrors = ex.getBindingResult().getFieldErrors().stream()
@@ -60,6 +61,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 .toList();
         problemDetail.setProperty("errors", fieldErrors);
         return ResponseEntity.status(status).headers(headers).body(problemDetail);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ProblemDetail handleGlobalException(Exception ex) {
+        log.error("Unexpected error", ex);
+        ProblemDetail problemDetail = ProblemDetail.forStatus(HttpStatus.INTERNAL_SERVER_ERROR);
+        problemDetail.setTitle("Internal Server Error");
+        problemDetail.setDetail("An unexpected error occurred");
+        problemDetail.setProperty("timestamp", Instant.now());
+        return problemDetail;
     }
 
     private record FieldError(String field, String message) {}
