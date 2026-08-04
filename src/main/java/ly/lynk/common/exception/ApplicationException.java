@@ -1,7 +1,9 @@
 package ly.lynk.common.exception;
 
+import lombok.Getter;
 import org.springframework.http.HttpStatus;
 
+@Getter
 public abstract sealed class ApplicationException extends RuntimeException
         permits UrlNotFoundException, UrlExpiredException, AliasAlreadyExistsException, UrlOwnershipException {
 
@@ -10,9 +12,5 @@ public abstract sealed class ApplicationException extends RuntimeException
     protected ApplicationException(String message, HttpStatus httpStatus) {
         super(message);
         this.httpStatus = httpStatus;
-    }
-
-    public HttpStatus getHttpStatus() {
-        return httpStatus;
     }
 }

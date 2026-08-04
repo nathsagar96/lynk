@@ -1,12 +1,9 @@
 package ly.lynk.url;
 
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-import java.net.URI;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
@@ -42,18 +39,5 @@ public class UrlController {
         String userId = auth.getToken().getSubject();
         urlService.deleteUrl(shortcode, userId);
         return ResponseEntity.noContent().build();
-    }
-
-    @GetMapping("/{shortcode}")
-    public ResponseEntity<Void> redirect(@PathVariable String shortcode, HttpServletRequest request) {
-        String ipAddress = request.getRemoteAddr();
-        String userAgent = request.getHeader(HttpHeaders.USER_AGENT);
-        String referer = request.getHeader(HttpHeaders.REFERER);
-
-        String originalUrl = urlService.resolveAndTrack(shortcode, ipAddress, userAgent, referer);
-
-        return ResponseEntity.status(HttpStatus.FOUND)
-                .location(URI.create(originalUrl))
-                .build();
     }
 }

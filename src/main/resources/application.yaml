@@ -17,7 +17,7 @@ spring:
         jwt:
           issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8080/realms/lynk}
 
-lynk:
+app:
   snowflake:
     machine-id: ${LYNK_MACHINE_ID:0}
     epoch: "2025-01-01T00:00:00Z"

@@ -8,13 +8,11 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.Instant;
 import ly.lynk.common.exception.GlobalExceptionHandler;
-import ly.lynk.common.exception.UrlNotFoundException;
 import ly.lynk.security.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +33,9 @@ class UrlControllerTest {
 
     @MockitoBean
     private UrlService urlService;
+
+    @MockitoBean
+    private RedirectService redirectService;
 
     @Test
     void shouldCreateShortUrl() throws Exception {
@@ -72,22 +73,6 @@ class UrlControllerTest {
                                 {"url": "not-a-url"}
                                 """))
                 .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void shouldRedirectForValidShortcode() throws Exception {
-        when(urlService.resolveAndTrack(eq("abc"), any(), any(), any())).thenReturn("https://example.com");
-
-        mockMvc.perform(get("/abc"))
-                .andExpect(status().isFound())
-                .andExpect(header().string("Location", "https://example.com"));
-    }
-
-    @Test
-    void shouldReturn404ForUnknownShortcode() throws Exception {
-        when(urlService.resolveAndTrack(eq("nope"), any(), any(), any())).thenThrow(new UrlNotFoundException("nope"));
-
-        mockMvc.perform(get("/nope")).andExpect(status().isNotFound());
     }
 
     @Test

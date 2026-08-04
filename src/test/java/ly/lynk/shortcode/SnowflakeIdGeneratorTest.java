@@ -11,7 +11,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
-import ly.lynk.common.LynkProperties;
+import ly.lynk.common.SnowflakeProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -21,7 +21,7 @@ class SnowflakeIdGeneratorTest {
 
     @BeforeEach
     void setUp() {
-        var snowflakeProps = new LynkProperties.SnowflakeProperties(1, Instant.parse("2025-01-01T00:00:00Z"));
+        var snowflakeProps = new SnowflakeProperties(1, Instant.parse("2025-01-01T00:00:00Z"));
         generator = new SnowflakeIdGenerator(snowflakeProps);
     }
 
@@ -108,12 +108,12 @@ class SnowflakeIdGeneratorTest {
 
     @Test
     void shouldRejectFutureEpoch() {
-        var futureProps = new LynkProperties.SnowflakeProperties(1, Instant.parse("2025-01-01T00:00:00Z"));
+        var futureProps = new SnowflakeProperties(1, Instant.parse("2025-01-01T00:00:00Z"));
         assertThatThrownBy(() -> new PastClockGenerator(futureProps)).isInstanceOf(IllegalArgumentException.class);
     }
 
-    private static LynkProperties.SnowflakeProperties snowflakeProperties() {
-        return new LynkProperties.SnowflakeProperties(1, Instant.parse("2025-01-01T00:00:00Z"));
+    private static SnowflakeProperties snowflakeProperties() {
+        return new SnowflakeProperties(1, Instant.parse("2025-01-01T00:00:00Z"));
     }
 
     private static final class FakeClockGenerator extends SnowflakeIdGenerator {
@@ -121,7 +121,7 @@ class SnowflakeIdGeneratorTest {
         private final Deque<Long> times;
         private long lastReturned = -1L;
 
-        FakeClockGenerator(LynkProperties.SnowflakeProperties props, Deque<Long> times) {
+        FakeClockGenerator(SnowflakeProperties props, Deque<Long> times) {
             super(props);
             this.times = times;
         }
@@ -143,7 +143,7 @@ class SnowflakeIdGeneratorTest {
 
         private static final long PAST = Instant.parse("2020-01-01T00:00:00Z").toEpochMilli();
 
-        PastClockGenerator(LynkProperties.SnowflakeProperties props) {
+        PastClockGenerator(SnowflakeProperties props) {
             super(props);
         }
 

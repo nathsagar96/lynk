@@ -2,7 +2,7 @@ package ly.lynk.shortcode;
 
 import java.time.Instant;
 import java.util.concurrent.locks.ReentrantLock;
-import ly.lynk.common.LynkProperties;
+import ly.lynk.common.SnowflakeProperties;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -21,7 +21,7 @@ public class SnowflakeIdGenerator {
     private long lastTimestamp = -1L;
     private long sequence = 0L;
 
-    public SnowflakeIdGenerator(LynkProperties.SnowflakeProperties snowflakeProperties) {
+    public SnowflakeIdGenerator(SnowflakeProperties snowflakeProperties) {
         this.machineId = snowflakeProperties.machineId();
         this.epochMillis = snowflakeProperties.epoch().toEpochMilli();
 

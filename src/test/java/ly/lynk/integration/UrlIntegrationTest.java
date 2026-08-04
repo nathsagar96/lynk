@@ -139,7 +139,7 @@ class UrlIntegrationTest {
         // List URLs for user-1
         mockMvc.perform(get("/api/v1/urls").with(jwt().jwt(j -> j.subject("user-1"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalElements").value(2));
+                .andExpect(jsonPath("$.page.totalElements").value(2));
     }
 
     @Test
