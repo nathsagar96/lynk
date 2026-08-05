@@ -34,3 +34,6 @@ build/
 
 ### Worktrees ###
 .worktrees/
+
+### Local overrides ###
+.env
