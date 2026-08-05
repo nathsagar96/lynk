@@ -1,0 +1,34 @@
+{
+  "realm": "lynk",
+  "enabled": true,
+  "registrationAllowed": false,
+  "loginTheme": "keycloak",
+  "accountTheme": "keycloak",
+  "adminTheme": "keycloak",
+  "emailTheme": "keycloak",
+  "roles": {
+    "realm": [
+      {
+        "name": "user",
+        "description": "Default role for authenticated lynk users"
+      }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "lynk-app",
+      "name": "Lynk App",
+      "enabled": true,
+      "publicClient": true,
+      "directAccessGrantsEnabled": true,
+      "standardFlowEnabled": true,
+      "redirectUris": ["*"],
+      "webOrigins": ["*"],
+      "defaultClientScopes": ["web-origins", "profile", "roles", "email"],
+      "protocol": "openid-connect"
+    }
+  ],
+  "defaultRole": {
+    "name": "user"
+  }
+}
