@@ -28,3 +28,5 @@ app:
     machine-id: 0
   url:
     default-expiry: 1d
+    cleanup:
+      batch-size: 100

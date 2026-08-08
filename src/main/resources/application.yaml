@@ -57,9 +57,19 @@ management:
     annotations:
       enabled: true
 
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: alpha
+
 app:
   snowflake:
     machine-id: ${MACHINE_ID}
     epoch: "2025-01-01T00:00:00Z"
   url:
     default-expiry: 365d
+    cleanup:
+      batch-size: 500

@@ -60,6 +60,8 @@ public class SecurityConfig {
                         .frameOptions(HeadersConfigurer.FrameOptionsConfig::deny))
                 .authorizeHttpRequests(auth -> auth.requestMatchers("/actuator/**")
                         .permitAll()
+                        .requestMatchers("/v3/api-docs/**", "/v3/api-docs.yaml", "/swagger-ui/**", "/swagger-ui.html")
+                        .permitAll()
                         .requestMatchers(HttpMethod.GET, "/{shortcode}")
                         .permitAll()
                         .requestMatchers("/api/v1/urls/**")

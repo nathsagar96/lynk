@@ -27,6 +27,12 @@ spring:
   flyway:
     enabled: false
 
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
 logging:
   level:
     root: WARN
