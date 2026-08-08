@@ -1,0 +1,1 @@
+CREATE INDEX idx_url_expires_at ON url (expires_at);

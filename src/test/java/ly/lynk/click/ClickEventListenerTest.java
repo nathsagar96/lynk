@@ -1,12 +1,12 @@
 package ly.lynk.click;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 import java.time.Instant;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -24,53 +24,73 @@ class ClickEventListenerTest {
     private ClickEventListener listener;
 
     @Test
-    void shouldPersistClickEvent() {
+    void shouldBufferClickEvent() {
         var event = new ClickEvent("abc123", "192.168.1.1", "Mozilla/5.0", "https://google.com", Instant.now());
 
         listener.onClickEvent(event);
 
-        verify(clickRepository).save(any(ClickEntity.class));
+        verify(clickRepository, never()).saveAll(any());
     }
 
     @Test
-    void shouldAnonymizeIpv4BeforePersisting() {
+    void shouldFlushBufferedEvents() {
+        var event1 = new ClickEvent("abc123", "192.168.1.1", "Mozilla/5.0", null, Instant.now());
+        var event2 = new ClickEvent("def456", "10.0.0.1", "Chrome/120", null, Instant.now());
+
+        listener.onClickEvent(event1);
+        listener.onClickEvent(event2);
+        listener.flush();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<ClickEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(clickRepository).saveAll(captor.capture());
+        assertThat(captor.getValue()).hasSize(2);
+    }
+
+    @Test
+    void shouldAnonymizeIpv4BeforeBuffering() {
         var event = new ClickEvent("abc123", "192.168.1.100", "Mozilla/5.0", null, Instant.now());
-        var captor = ArgumentCaptor.forClass(ClickEntity.class);
 
         listener.onClickEvent(event);
+        listener.flush();
 
-        verify(clickRepository).save(captor.capture());
-        assertThat(captor.getValue().getIpAddress()).isEqualTo("192.168.1.0");
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<ClickEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(clickRepository).saveAll(captor.capture());
+        assertThat(captor.getValue().getFirst().getIpAddress()).isEqualTo("192.168.1.0");
     }
 
     @Test
-    void shouldAnonymizeIpv6BeforePersisting() {
+    void shouldAnonymizeIpv6BeforeBuffering() {
         var event =
                 new ClickEvent("abc123", "2001:0db8:85a3:0000:0000:0000:0000:0001", "Mozilla/5.0", null, Instant.now());
-        var captor = ArgumentCaptor.forClass(ClickEntity.class);
 
         listener.onClickEvent(event);
+        listener.flush();
 
-        verify(clickRepository).save(captor.capture());
-        assertThat(captor.getValue().getIpAddress()).isEqualTo("2001:0db8:85a3::");
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<ClickEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(clickRepository).saveAll(captor.capture());
+        assertThat(captor.getValue().getFirst().getIpAddress()).isEqualTo("2001:0db8:85a3::");
     }
 
     @Test
     void shouldHandleNullIpAddress() {
         var event = new ClickEvent("abc123", null, "Mozilla/5.0", null, Instant.now());
-        var captor = ArgumentCaptor.forClass(ClickEntity.class);
 
         listener.onClickEvent(event);
+        listener.flush();
 
-        verify(clickRepository).save(captor.capture());
-        assertThat(captor.getValue().getIpAddress()).isNull();
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<ClickEntity>> captor = ArgumentCaptor.forClass(List.class);
+        verify(clickRepository).saveAll(captor.capture());
+        assertThat(captor.getValue().getFirst().getIpAddress()).isNull();
     }
 
     @Test
-    void shouldNotThrowWhenDatabaseFails() {
-        var event = new ClickEvent("abc123", "192.168.1.1", "Mozilla/5.0", null, Instant.now());
-        doThrow(new RuntimeException("DB down")).when(clickRepository).save(any());
+    void shouldNotFlushWhenBufferIsEmpty() {
+        listener.flush();
 
-        assertThatCode(() -> listener.onClickEvent(event)).doesNotThrowAnyException();
+        verify(clickRepository, never()).saveAll(any());
     }
 }
