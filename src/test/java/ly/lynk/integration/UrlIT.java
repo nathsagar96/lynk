@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.Duration;
 import ly.lynk.TestcontainersConfiguration;
 import ly.lynk.click.ClickRepository;
+import ly.lynk.url.UrlCacheService;
 import ly.lynk.url.UrlRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,6 +39,9 @@ class UrlIT {
 
     @Autowired
     private UrlRepository urlRepository;
+
+    @Autowired
+    private UrlCacheService urlCacheService;
 
     @Autowired
     private ClickRepository clickRepository;
@@ -180,5 +184,28 @@ class UrlIT {
     @Test
     void shouldReturn404ForNonExistentShortcode() throws Exception {
         mockMvc.perform(get("/does-not-exist")).andExpect(status().isNotFound());
+    }
+
+    @Test
+    void shouldReturn410WhenUrlIsExpired() throws Exception {
+        // Create a URL with the minimum expiry (1 second)
+        String responseBody = mockMvc.perform(post("/api/v1/urls")
+                        .with(jwt().jwt(j -> j.subject("user-1")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"url": "https://example.com", "alias": "expiring", "expiry": "PT1S"}
+                                """))
+                .andExpect(status().isCreated())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+
+        // Evict from cache so redirect hits the DB
+        urlCacheService.evict("expiring");
+
+        // Wait for the URL to expire
+        await().atMost(Duration.ofSeconds(5)).untilAsserted(() -> {
+            mockMvc.perform(get("/expiring")).andExpect(status().isGone());
+        });
     }
 }

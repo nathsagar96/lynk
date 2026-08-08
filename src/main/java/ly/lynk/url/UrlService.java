@@ -1,5 +1,6 @@
 package ly.lynk.url;
 
+import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
@@ -9,6 +10,7 @@ import ly.lynk.exception.UrlNotFoundException;
 import ly.lynk.exception.UrlOwnershipException;
 import ly.lynk.shortcode.Base62Encoder;
 import ly.lynk.shortcode.SnowflakeIdGenerator;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -23,25 +25,18 @@ public class UrlService {
     private final UrlCacheService urlCacheService;
     private final SnowflakeIdGenerator snowflakeIdGenerator;
     private final UrlProperties urlProperties;
+    private final UrlMapper urlMapper;
 
     @Transactional
     public UrlResponse createUrl(CreateUrlRequest request, String userId) {
         long id = snowflakeIdGenerator.nextId();
 
-        String shortcode;
-        if (request.alias() != null && !request.alias().isBlank()) {
-            if (urlRepository.existsByShortcode(request.alias())) {
-                throw new AliasAlreadyExistsException(request.alias());
-            }
-            shortcode = request.alias();
-        } else {
-            shortcode = Base62Encoder.encode(id);
-        }
+        boolean hasCustomAlias = request.alias() != null && !request.alias().isBlank();
+        String shortcode = hasCustomAlias ? request.alias() : Base62Encoder.encode(id);
 
         Duration expiry = request.expiry() != null ? request.expiry() : urlProperties.defaultExpiry();
         Instant now = Instant.now();
         Instant expiresAt = now.plus(expiry);
-        Instant createdAt = now;
 
         var entity = UrlEntity.builder()
                 .id(id)
@@ -49,22 +44,36 @@ public class UrlService {
                 .originalUrl(request.url())
                 .userId(userId)
                 .expiresAt(expiresAt)
-                .createdAt(createdAt)
+                .createdAt(now)
                 .build();
 
-        urlRepository.save(entity);
+        try {
+            urlRepository.save(entity);
+        } catch (DataIntegrityViolationException ex) {
+            if (hasCustomAlias) {
+                throw new AliasAlreadyExistsException(request.alias());
+            }
+            throw ex;
+        }
+
         urlCacheService.cacheUrl(shortcode, request.url(), expiry);
 
-        log.info("Created short URL: {} -> {} for user: {}", shortcode, request.url(), userId);
-        return new UrlResponse(shortcode, request.url(), expiresAt, createdAt);
+        log.info("Created short URL: {} -> {} for user: {}", shortcode, sanitizeUrlForLog(request.url()), userId);
+        return urlMapper.toResponse(shortcode, request.url(), expiresAt, now);
+    }
+
+    private String sanitizeUrlForLog(String url) {
+        try {
+            URI uri = URI.create(url);
+            return uri.getScheme() + "://" + uri.getHost();
+        } catch (Exception e) {
+            return "<invalid-url>";
+        }
     }
 
     @Transactional(readOnly = true)
     public Page<UrlResponse> listUrls(String userId, Pageable pageable) {
-        return urlRepository
-                .findByUserId(userId, pageable)
-                .map(entity -> new UrlResponse(
-                        entity.getShortcode(), entity.getOriginalUrl(), entity.getExpiresAt(), entity.getCreatedAt()));
+        return urlRepository.findByUserId(userId, pageable).map(urlMapper::toResponse);
     }
 
     @Transactional(readOnly = true)
@@ -74,8 +83,7 @@ public class UrlService {
         if (!entity.getUserId().equals(userId)) {
             throw new UrlOwnershipException();
         }
-        return new UrlResponse(
-                entity.getShortcode(), entity.getOriginalUrl(), entity.getExpiresAt(), entity.getCreatedAt());
+        return urlMapper.toResponse(entity);
     }
 
     @Transactional

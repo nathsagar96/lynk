@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -19,12 +20,14 @@ import ly.lynk.exception.AliasAlreadyExistsException;
 import ly.lynk.exception.UrlNotFoundException;
 import ly.lynk.exception.UrlOwnershipException;
 import ly.lynk.shortcode.SnowflakeIdGenerator;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -44,8 +47,23 @@ class UrlServiceTest {
     @Mock
     private UrlProperties urlProperties;
 
+    @Mock
+    private UrlMapper urlMapper;
+
     @InjectMocks
     private UrlService urlService;
+
+    @BeforeEach
+    void setUp() {
+        lenient()
+                .when(urlMapper.toResponse(anyString(), anyString(), any(Instant.class), any(Instant.class)))
+                .thenAnswer(inv -> new UrlResponse(
+                        inv.getArgument(0), inv.getArgument(1), inv.getArgument(2), inv.getArgument(3)));
+        lenient().when(urlMapper.toResponse(any(UrlEntity.class))).thenAnswer(inv -> {
+            UrlEntity e = inv.getArgument(0);
+            return new UrlResponse(e.getShortcode(), e.getOriginalUrl(), e.getExpiresAt(), e.getCreatedAt());
+        });
+    }
 
     @Test
     void shouldCreateUrlWithGeneratedShortcode() {
@@ -65,7 +83,6 @@ class UrlServiceTest {
     @Test
     void shouldCreateUrlWithCustomAlias() {
         when(snowflakeIdGenerator.nextId()).thenReturn(123456789L);
-        when(urlRepository.existsByShortcode("my-alias")).thenReturn(false);
         when(urlProperties.defaultExpiry()).thenReturn(Duration.ofDays(365));
         when(urlRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
@@ -77,7 +94,9 @@ class UrlServiceTest {
 
     @Test
     void shouldThrowWhenAliasAlreadyExists() {
-        when(urlRepository.existsByShortcode("taken")).thenReturn(true);
+        when(snowflakeIdGenerator.nextId()).thenReturn(123456789L);
+        when(urlProperties.defaultExpiry()).thenReturn(Duration.ofDays(365));
+        when(urlRepository.save(any())).thenThrow(new DataIntegrityViolationException("duplicate key"));
 
         var request = new CreateUrlRequest("https://example.com", "taken", null);
 
@@ -144,7 +163,6 @@ class UrlServiceTest {
         UrlResponse response = urlService.createUrl(request, "user-1");
 
         assertThat(response.shortcode()).isNotEqualTo("   ");
-        verify(urlRepository, never()).existsByShortcode(anyString());
     }
 
     @Test

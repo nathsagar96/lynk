@@ -22,7 +22,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(ApplicationException.class)
     public ProblemDetail handleApplicationException(ApplicationException ex) {
-        log.warn("Application exception: {}", ex.getMessage(), ex);
+        log.warn("Application exception [{}]: {}", ex.getClass().getSimpleName(), ex.getMessage());
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(ex.getHttpStatus(), ex.getMessage());
         problemDetail.setTitle(ex.getClass().getSimpleName());
         problemDetail.setProperty("timestamp", Instant.now());

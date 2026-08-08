@@ -33,11 +33,12 @@ public class RedirectService {
         UrlEntity entity =
                 urlRepository.findByShortcode(shortcode).orElseThrow(() -> new UrlNotFoundException(shortcode));
 
-        if (entity.getExpiresAt().isBefore(Instant.now())) {
+        Instant now = Instant.now();
+        if (entity.getExpiresAt().isBefore(now)) {
             throw new UrlExpiredException(shortcode);
         }
 
-        Duration remainingTtl = Duration.between(Instant.now(), entity.getExpiresAt());
+        Duration remainingTtl = Duration.between(now, entity.getExpiresAt());
         urlCacheService.cacheUrl(shortcode, entity.getOriginalUrl(), remainingTtl);
 
         return entity.getOriginalUrl();
