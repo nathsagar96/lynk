@@ -8,9 +8,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import ly.lynk.common.exception.GlobalExceptionHandler;
-import ly.lynk.common.exception.UrlExpiredException;
-import ly.lynk.common.exception.UrlNotFoundException;
+import ly.lynk.exception.GlobalExceptionHandler;
+import ly.lynk.exception.UrlExpiredException;
+import ly.lynk.exception.UrlNotFoundException;
 import ly.lynk.security.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

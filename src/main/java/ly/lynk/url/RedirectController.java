@@ -16,7 +16,7 @@ public class RedirectController {
 
     private final RedirectService redirectService;
 
-    @GetMapping("/{shortcode}")
+    @GetMapping("/{shortcode:[a-zA-Z0-9][a-zA-Z0-9-]{2,10}}")
     public ResponseEntity<Void> redirect(@PathVariable String shortcode, HttpServletRequest request) {
         String ipAddress = request.getRemoteAddr();
         String userAgent = request.getHeader(HttpHeaders.USER_AGENT);

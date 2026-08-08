@@ -11,6 +11,8 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
+import org.springframework.security.web.header.writers.XXssProtectionHeaderWriter;
 
 @Configuration
 @EnableWebSecurity
@@ -21,8 +23,20 @@ public class SecurityConfig {
     public SecurityFilterChain prodSecurityFilterChain(HttpSecurity http) {
         return http.csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .headers(headers -> headers.contentTypeOptions(Customizer.withDefaults())
-                        .frameOptions(HeadersConfigurer.FrameOptionsConfig::deny))
+                .headers(
+                        headers -> headers.contentTypeOptions(Customizer.withDefaults())
+                                .frameOptions(HeadersConfigurer.FrameOptionsConfig::deny)
+                                .xssProtection(xss ->
+                                        xss.headerValue(XXssProtectionHeaderWriter.HeaderValue.ENABLED_MODE_BLOCK))
+                                .contentSecurityPolicy(csp -> csp.policyDirectives("frame-ancestors 'none'"))
+                                .httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true)
+                                        .maxAgeInSeconds(31533600)
+                                        .requestMatcher(req -> true))
+                                .referrerPolicy(referrer -> referrer.policy(
+                                        ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+                                .permissionsPolicyHeader(
+                                        permissions -> permissions.policy(
+                                                "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()")))
                 .authorizeHttpRequests(auth -> auth.requestMatchers("/actuator/health")
                         .permitAll()
                         .requestMatchers("/actuator/**")

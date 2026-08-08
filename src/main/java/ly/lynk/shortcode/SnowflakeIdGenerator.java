@@ -2,7 +2,6 @@ package ly.lynk.shortcode;
 
 import java.time.Instant;
 import java.util.concurrent.locks.ReentrantLock;
-import ly.lynk.common.SnowflakeProperties;
 import org.springframework.stereotype.Component;
 
 @Component

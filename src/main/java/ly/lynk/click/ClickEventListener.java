@@ -19,7 +19,7 @@ public class ClickEventListener {
         try {
             var clickEntity = ClickEntity.builder()
                     .shortcode(event.shortcode())
-                    .ipAddress(event.ipAddress())
+                    .ipAddress(IpAnonymizer.anonymize(event.ipAddress()))
                     .userAgent(event.userAgent())
                     .referer(event.referer())
                     .clickedAt(event.clickedAt())

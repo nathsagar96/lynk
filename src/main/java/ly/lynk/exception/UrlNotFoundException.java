@@ -1,4 +1,4 @@
-package ly.lynk.common.exception;
+package ly.lynk.exception;
 
 import org.springframework.http.HttpStatus;
 

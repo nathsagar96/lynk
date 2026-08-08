@@ -5,8 +5,8 @@ import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ly.lynk.click.ClickEvent;
-import ly.lynk.common.exception.UrlExpiredException;
-import ly.lynk.common.exception.UrlNotFoundException;
+import ly.lynk.exception.UrlExpiredException;
+import ly.lynk.exception.UrlNotFoundException;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,7 +29,7 @@ public class RedirectService {
     }
 
     @Transactional(readOnly = true)
-    private String resolveFromDb(String shortcode) {
+    public String resolveFromDb(String shortcode) {
         UrlEntity entity =
                 urlRepository.findByShortcode(shortcode).orElseThrow(() -> new UrlNotFoundException(shortcode));
 

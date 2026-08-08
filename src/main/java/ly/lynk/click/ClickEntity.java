@@ -27,7 +27,7 @@ public class ClickEntity {
     @Column(nullable = false, length = 11)
     private String shortcode;
 
-    @Column(name = "ip_address", length = 45)
+    @Column(name = "ip_address", length = 16)
     private String ipAddress;
 
     @Column(name = "user_agent", columnDefinition = "TEXT")

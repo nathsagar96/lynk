@@ -1,4 +1,4 @@
-package ly.lynk.common;
+package ly.lynk.config;
 
 import static org.springframework.data.web.config.EnableSpringDataWebSupport.PageSerializationMode.VIA_DTO;
 

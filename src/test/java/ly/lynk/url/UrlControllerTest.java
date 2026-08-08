@@ -16,10 +16,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import ly.lynk.common.exception.AliasAlreadyExistsException;
-import ly.lynk.common.exception.GlobalExceptionHandler;
-import ly.lynk.common.exception.UrlNotFoundException;
-import ly.lynk.common.exception.UrlOwnershipException;
+import ly.lynk.exception.AliasAlreadyExistsException;
+import ly.lynk.exception.GlobalExceptionHandler;
+import ly.lynk.exception.UrlNotFoundException;
+import ly.lynk.exception.UrlOwnershipException;
 import ly.lynk.security.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -128,7 +128,7 @@ class UrlControllerTest {
 
     @Test
     void shouldReturnForbiddenWhenDeletingOthersUrl() throws Exception {
-        doThrow(new UrlOwnershipException("abc", "user-2")).when(urlService).deleteUrl("abc", "user-1");
+        doThrow(new UrlOwnershipException()).when(urlService).deleteUrl("abc", "user-1");
 
         mockMvc.perform(delete("/api/v1/urls/abc").with(jwt().jwt(j -> j.subject("user-1"))))
                 .andExpect(status().isForbidden());

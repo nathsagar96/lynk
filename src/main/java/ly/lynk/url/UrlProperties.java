@@ -1,4 +1,4 @@
-package ly.lynk.common;
+package ly.lynk.url;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;

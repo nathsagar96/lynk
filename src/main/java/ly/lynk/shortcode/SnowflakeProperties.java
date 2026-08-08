@@ -1,4 +1,4 @@
-package ly.lynk.common;
+package ly.lynk.shortcode;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;

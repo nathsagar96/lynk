@@ -4,10 +4,9 @@ import java.time.Duration;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import ly.lynk.common.UrlProperties;
-import ly.lynk.common.exception.AliasAlreadyExistsException;
-import ly.lynk.common.exception.UrlNotFoundException;
-import ly.lynk.common.exception.UrlOwnershipException;
+import ly.lynk.exception.AliasAlreadyExistsException;
+import ly.lynk.exception.UrlNotFoundException;
+import ly.lynk.exception.UrlOwnershipException;
 import ly.lynk.shortcode.Base62Encoder;
 import ly.lynk.shortcode.SnowflakeIdGenerator;
 import org.springframework.data.domain.Page;
@@ -40,8 +39,9 @@ public class UrlService {
         }
 
         Duration expiry = request.expiry() != null ? request.expiry() : urlProperties.defaultExpiry();
-        Instant expiresAt = Instant.now().plus(expiry);
-        Instant createdAt = Instant.now();
+        Instant now = Instant.now();
+        Instant expiresAt = now.plus(expiry);
+        Instant createdAt = now;
 
         var entity = UrlEntity.builder()
                 .id(id)
@@ -67,13 +67,24 @@ public class UrlService {
                         entity.getShortcode(), entity.getOriginalUrl(), entity.getExpiresAt(), entity.getCreatedAt()));
     }
 
+    @Transactional(readOnly = true)
+    public UrlResponse getByShortcode(String shortcode, String userId) {
+        UrlEntity entity =
+                urlRepository.findByShortcode(shortcode).orElseThrow(() -> new UrlNotFoundException(shortcode));
+        if (!entity.getUserId().equals(userId)) {
+            throw new UrlOwnershipException();
+        }
+        return new UrlResponse(
+                entity.getShortcode(), entity.getOriginalUrl(), entity.getExpiresAt(), entity.getCreatedAt());
+    }
+
     @Transactional
     public void deleteUrl(String shortcode, String userId) {
         UrlEntity entity =
                 urlRepository.findByShortcode(shortcode).orElseThrow(() -> new UrlNotFoundException(shortcode));
 
         if (!entity.getUserId().equals(userId)) {
-            throw new UrlOwnershipException(shortcode, userId);
+            throw new UrlOwnershipException();
         }
 
         urlRepository.delete(entity);
