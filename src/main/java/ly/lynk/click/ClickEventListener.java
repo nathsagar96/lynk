@@ -39,12 +39,18 @@ public class ClickEventListener {
     public void flush() {
         List<ClickEntity> batch = new ArrayList<>();
         ClickEntity entity;
-        while ((entity = buffer.poll()) != null && batch.size() < 500) {
+        int maxPerFlush = 5000;
+        while ((entity = buffer.poll()) != null && batch.size() < maxPerFlush) {
             batch.add(entity);
         }
         if (!batch.isEmpty()) {
-            clickRepository.saveAll(batch);
-            log.debug("Flushed {} click events to database", batch.size());
+            try {
+                clickRepository.saveAll(batch);
+                log.debug("Flushed {} click events to database", batch.size());
+            } catch (Exception ex) {
+                log.error("Failed to flush {} click events, re-enqueuing", batch.size(), ex);
+                buffer.addAll(batch);
+            }
         }
     }
 }

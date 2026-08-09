@@ -1,6 +1,7 @@
 package ly.lynk.url;
 
 import java.net.URI;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ public class UrlService {
     private final SnowflakeIdGenerator snowflakeIdGenerator;
     private final UrlProperties urlProperties;
     private final UrlMapper urlMapper;
+    private final Clock clock;
 
     @Transactional
     public UrlResponse createUrl(CreateUrlRequest request, String userId) {
@@ -35,7 +37,7 @@ public class UrlService {
         String shortcode = hasCustomAlias ? request.alias() : Base62Encoder.encode(id);
 
         Duration expiry = request.expiry() != null ? request.expiry() : urlProperties.defaultExpiry();
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         Instant expiresAt = now.plus(expiry);
 
         var entity = UrlEntity.builder()

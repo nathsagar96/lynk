@@ -2,7 +2,6 @@ package ly.lynk.url;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.within;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
@@ -11,9 +10,9 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import ly.lynk.exception.AliasAlreadyExistsException;
@@ -50,11 +49,15 @@ class UrlServiceTest {
     @Mock
     private UrlMapper urlMapper;
 
+    @Mock
+    private Clock clock;
+
     @InjectMocks
     private UrlService urlService;
 
     @BeforeEach
     void setUp() {
+        lenient().when(clock.instant()).thenReturn(Instant.parse("2026-08-09T00:00:00Z"));
         lenient()
                 .when(urlMapper.toResponse(anyString(), anyString(), any(Instant.class), any(Instant.class)))
                 .thenAnswer(inv -> new UrlResponse(
@@ -147,7 +150,7 @@ class UrlServiceTest {
         UrlResponse response = urlService.createUrl(request, "user-1");
 
         assertThat(response.expiresAt())
-                .isCloseTo(Instant.now().plus(Duration.ofMinutes(5)), within(2, ChronoUnit.SECONDS));
+                .isEqualTo(Instant.parse("2026-08-09T00:00:00Z").plus(Duration.ofMinutes(5)));
         verify(urlProperties, never()).defaultExpiry();
         verify(urlCacheService)
                 .cacheUrl(eq(response.shortcode()), eq("https://example.com"), eq(Duration.ofMinutes(5)));

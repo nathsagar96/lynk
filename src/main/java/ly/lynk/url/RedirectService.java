@@ -1,5 +1,6 @@
 package ly.lynk.url;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
@@ -19,11 +20,12 @@ public class RedirectService {
     private final UrlRepository urlRepository;
     private final UrlCacheService urlCacheService;
     private final ApplicationEventPublisher eventPublisher;
+    private final Clock clock;
 
     public String resolveAndTrack(String shortcode, String ipAddress, String userAgent, String referer) {
         String originalUrl = urlCacheService.getCachedUrl(shortcode).orElseGet(() -> resolveFromDb(shortcode));
 
-        eventPublisher.publishEvent(new ClickEvent(shortcode, ipAddress, userAgent, referer, Instant.now()));
+        eventPublisher.publishEvent(new ClickEvent(shortcode, ipAddress, userAgent, referer, clock.instant()));
 
         return originalUrl;
     }
@@ -33,7 +35,7 @@ public class RedirectService {
         UrlEntity entity =
                 urlRepository.findByShortcode(shortcode).orElseThrow(() -> new UrlNotFoundException(shortcode));
 
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         if (entity.getExpiresAt().isBefore(now)) {
             throw new UrlExpiredException(shortcode);
         }

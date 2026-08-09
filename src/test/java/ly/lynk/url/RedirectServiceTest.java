@@ -5,16 +5,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import ly.lynk.click.ClickEvent;
 import ly.lynk.exception.UrlExpiredException;
 import ly.lynk.exception.UrlNotFoundException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -35,8 +38,16 @@ class RedirectServiceTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private Clock clock;
+
     @InjectMocks
     private RedirectService redirectService;
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(clock.instant()).thenReturn(Instant.parse("2026-08-09T00:00:00Z"));
+    }
 
     @Test
     void shouldResolveUrlFromCache() {
@@ -85,8 +96,8 @@ class RedirectServiceTest {
                 .shortcode("old")
                 .originalUrl("https://example.com")
                 .userId("user-1")
-                .expiresAt(Instant.now().minusSeconds(3600))
-                .createdAt(Instant.now().minusSeconds(7200))
+                .expiresAt(Instant.parse("2026-08-08T23:00:00Z"))
+                .createdAt(Instant.parse("2026-08-08T22:00:00Z"))
                 .build();
         when(urlRepository.findByShortcode("old")).thenReturn(Optional.of(entity));
 
@@ -159,8 +170,8 @@ class RedirectServiceTest {
                 .shortcode("old")
                 .originalUrl("https://example.com")
                 .userId("user-1")
-                .expiresAt(Instant.now().minusSeconds(60))
-                .createdAt(Instant.now().minusSeconds(120))
+                .expiresAt(Instant.parse("2026-08-08T23:00:00Z"))
+                .createdAt(Instant.parse("2026-08-08T22:00:00Z"))
                 .build();
         when(urlRepository.findByShortcode("old")).thenReturn(Optional.of(entity));
 

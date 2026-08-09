@@ -35,7 +35,8 @@ class RedirectControllerTest {
 
         mockMvc.perform(get("/abc"))
                 .andExpect(status().isFound())
-                .andExpect(header().string("Location", "https://example.com"));
+                .andExpect(header().string("Location", "https://example.com"))
+                .andExpect(header().string("Cache-Control", "no-store"));
     }
 
     @Test

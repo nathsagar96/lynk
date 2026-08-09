@@ -26,6 +26,8 @@ spring:
       max-lifetime: 1200000
   flyway:
     enabled: false
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
 
 springdoc:
   api-docs:
@@ -43,3 +45,11 @@ logging:
     ecs:
       service:
         environment: ${ENVIRONMENT:production}
+
+server:
+  shutdown: graceful
+
+management:
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:0.1}

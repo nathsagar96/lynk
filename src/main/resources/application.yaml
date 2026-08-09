@@ -27,6 +27,11 @@ spring:
   mvc:
     problemdetails:
       enabled: true
+  data:
+    web:
+      pageable:
+        max-page-size: 100
+        default-page-size: 20
   jackson:
     default-property-inclusion: non_null
   security:
@@ -67,7 +72,7 @@ springdoc:
 
 app:
   snowflake:
-    machine-id: ${MACHINE_ID}
+    machine-id: ${MACHINE_ID:0}
     epoch: "2025-01-01T00:00:00Z"
   url:
     default-expiry: 365d
