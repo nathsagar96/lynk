@@ -19,6 +19,7 @@ Lynk is a production-minded URL shortener API built with Spring Boot. It lets au
 - Java 25 and Spring Boot 4
 - PostgreSQL with Flyway migrations
 - Redis for URL-resolution caching
+- ShedLock for distributed scheduled-task coordination across pods
 - Keycloak and JWT bearer authentication
 - Springdoc OpenAPI / Swagger UI
 - Maven Wrapper, Testcontainers, and Spotless
@@ -229,15 +230,17 @@ In production, health is public while the remaining actuator endpoints require a
 
 ```text
 Authenticated client ──JWT──> URL management API ──> PostgreSQL
-                                      │
-                                      └─────────────> Redis cache
+                                       │
+                                       └─────────────> Redis cache
 
 Public visitor ──> /{shortcode} ──> Redis / PostgreSQL ──> 302 redirect
-                                      │
-                                      └─────────────> async click buffer ──> PostgreSQL
+                                       │
+                                       └─────────────> async click buffer ──> PostgreSQL
+
+Scheduled jobs ──> ShedLock (PostgreSQL) ──> only one pod executes cleanup at a time
 ```
 
-URL ownership is determined from the JWT subject. Resolved destinations are cached for their remaining link lifetime. Click events are queued asynchronously, persisted in batches, and have their IPv4/IPv6 addresses anonymized before storage.
+URL ownership is determined from the JWT subject. Resolved destinations are cached for their remaining link lifetime. Click events are queued asynchronously, persisted in batches, and have their IPv4/IPv6 addresses anonymized before storage. Expired-URL cleanup uses ShedLock to prevent concurrent execution across multiple pods.
 
 ## Development
 
