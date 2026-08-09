@@ -63,12 +63,17 @@ public class AnalyticsController {
                             mediaType = "application/problem+json",
                             schema = @Schema(implementation = ProblemDetail.class)))
     public ResponseEntity<AnalyticsResponse> getAnalytics(
-            @Parameter(description = "The shortcode to get analytics for") @PathVariable String shortcode,
-            @Parameter(description = "Start instant (ISO-8601), defaults to 30 days ago")
+            @Parameter(description = "The shortcode to get analytics for", example = "products") @PathVariable
+                    String shortcode,
+            @Parameter(
+                            description = "Start instant (ISO-8601), defaults to 30 days ago",
+                            example = "2026-07-10T14:20:00Z")
                     @RequestParam(required = false)
                     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
                     Instant startDate,
-            @Parameter(description = "End instant (ISO-8601), defaults to current instant")
+            @Parameter(
+                            description = "End instant (ISO-8601), defaults to current instant",
+                            example = "2026-08-09T14:20:00Z")
                     @RequestParam(required = false)
                     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
                     Instant endDate,

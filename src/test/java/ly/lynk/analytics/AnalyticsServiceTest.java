@@ -33,7 +33,7 @@ class AnalyticsServiceTest {
 
     @BeforeEach
     void setUp() {
-        analyticsService = new AnalyticsService(urlRepository, clickRepository);
+        analyticsService = new AnalyticsService(urlRepository, clickRepository, new AnalyticsMapper());
     }
 
     @Test
