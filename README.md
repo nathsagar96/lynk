@@ -10,6 +10,7 @@ Lynk is a production-minded URL shortener API built with Spring Boot. It lets au
 - Resolve public links with HTTP 302 redirects
 - Cache resolved destinations in Redis
 - Track clicks asynchronously and anonymize IP addresses before persistence
+- Retrieve click analytics (total clicks, time-series, referers, browser/OS breakdowns) for short links
 - Remove expired links in scheduled batches
 - Expose OpenAPI documentation, health checks, metrics, Prometheus metrics, and tracing hooks
 
@@ -28,6 +29,13 @@ Lynk is a production-minded URL shortener API built with Spring Boot. It lets au
 
 - Docker and Docker Compose
 - JDK 25
+
+### Clone the repository
+
+```bash
+git clone git@github.com:nathsagar96/lynk.git
+cd lynk
+```
 
 ### Start local infrastructure
 
@@ -53,6 +61,48 @@ Run the application with the development profile:
 ```
 
 On startup, Flyway creates the required database schema. The API reference is available at [Swagger UI](http://localhost:8080/swagger-ui.html), and the OpenAPI document is at `http://localhost:8080/v3/api-docs`.
+
+### Build a Docker image
+
+Spring Boot's buildpacks support builds an OCI image without a Dockerfile. A running Docker daemon is required.
+
+```bash
+./mvnw spring-boot:build-image
+```
+
+The image is tagged as `ly.lynk:0.0.1-SNAPSHOT` by default. Override the name with:
+
+```bash
+./mvnw spring-boot:build-image -Dspring-boot.build-image.imageName=lynk:latest
+```
+
+Run the container with:
+
+```bash
+docker run -p 8080:8080 \
+  -e KEYCLOAK_ISSUER_URI=<issuer-uri> \
+  -e DB_URL=<jdbc-url> \
+  -e DB_USERNAME=<user> \
+  -e DB_PASSWORD=<password> \
+  -e REDIS_HOST=<host> \
+  ly.lynk:0.0.1-SNAPSHOT
+```
+
+To build the image automatically during `mvn package`, bind the goal in `pom.xml`:
+
+```xml
+<plugin>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-maven-plugin</artifactId>
+    <executions>
+        <execution>
+            <goals>
+                <goal>build-image-no-fork</goal>
+            </goals>
+        </execution>
+    </executions>
+</plugin>
+```
 
 ## Authentication
 
@@ -107,8 +157,45 @@ All of these endpoints require `Authorization: Bearer <access-token>`.
 | --- | --- | --- |
 | `GET` | `/api/v1/urls` | List the caller’s links (supports Spring Data pagination parameters such as `page`, `size`, and `sort`) |
 | `GET` | `/api/v1/urls/{shortcode}` | Retrieve a link owned by the caller |
+| `GET` | `/api/v1/urls/{shortcode}/analytics` | Retrieve click analytics, time-series data, referer, browser, and OS breakdowns for a link owned by the caller |
 | `DELETE` | `/api/v1/urls/{shortcode}` | Permanently delete a link owned by the caller |
 | `GET` | `/{shortcode}` | Publicly redirect to the destination with `302 Found` |
+
+### Retrieve link analytics
+
+```bash
+curl -X GET "http://localhost:8080/api/v1/urls/products/analytics?startDate=2026-07-09T00:00:00Z&endDate=2026-08-09T23:59:59Z" \
+  -H "Authorization: Bearer <access-token>"
+```
+
+`startDate` and `endDate` are optional ISO-8601 timestamps. `startDate` defaults to 30 days prior to `endDate` (which defaults to the current time).
+
+Example response:
+
+```json
+{
+  "shortcode": "products",
+  "startDate": "2026-07-10T14:20:00Z",
+  "endDate": "2026-08-09T14:20:00Z",
+  "totalClicks": 150,
+  "clicksOverTime": [
+    { "date": "2026-08-08", "clicks": 25 },
+    { "date": "2026-08-09", "clicks": 42 }
+  ],
+  "topReferers": [
+    { "referer": "https://google.com", "clicks": 80 },
+    { "referer": "Direct / None", "clicks": 70 }
+  ],
+  "topBrowsers": [
+    { "browser": "Chrome", "clicks": 100 },
+    { "browser": "Safari", "clicks": 50 }
+  ],
+  "topOs": [
+    { "os": "macOS", "clicks": 90 },
+    { "os": "iOS", "clicks": 60 }
+  ]
+}
+```
 
 Invalid requests and domain errors are returned as RFC 7807 Problem Details responses (`application/problem+json`).
 

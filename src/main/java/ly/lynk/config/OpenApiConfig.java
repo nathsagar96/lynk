@@ -20,7 +20,7 @@ public class OpenApiConfig {
                         .description(
                                 "REST API for creating, managing, and resolving short URLs with analytics tracking.")
                         .version("v1")
-                        .contact(new Contact().name("Lynk").url("https://github.com/lynk")))
+                        .contact(new Contact().name("Lynk").url("https://github.com/nathsagar96/lynk")))
                 .addSecurityItem(new SecurityRequirement().addList("Bearer Authentication"))
                 .components(new Components()
                         .addSecuritySchemes(
