@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,7 @@ public class ExpiredUrlCleanupScheduler {
     private final Clock clock;
 
     @Scheduled(cron = "0 0 1 * * ?")
+    @SchedulerLock(name = "expiredUrlCleanup", lockAtMostFor = "30m", lockAtLeastFor = "5m")
     @Transactional
     public void deleteExpiredUrls() {
         Instant now = clock.instant();

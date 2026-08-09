@@ -8,7 +8,7 @@ spring:
       enabled: true
   datasource:
     hikari:
-      maximum-pool-size: 50
+      maximum-pool-size: 10
       minimum-idle: 5
       connection-timeout: 20000
       idle-timeout: 300000
