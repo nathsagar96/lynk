@@ -3,6 +3,7 @@ package ly.lynk.url;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -12,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -35,9 +37,24 @@ public class UrlController {
     @Operation(
             summary = "Create a short URL",
             description = "Generates a new short URL. If no alias is provided, a shortcode is generated automatically.")
-    @ApiResponse(responseCode = "201", description = "Short URL created successfully")
-    @ApiResponse(responseCode = "400", description = "Invalid request (validation errors)", content = @Content)
-    @ApiResponse(responseCode = "401", description = "Unauthorized — invalid or missing JWT", content = @Content)
+    @ApiResponse(
+            responseCode = "201",
+            description = "Short URL created successfully",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = UrlResponse.class)))
+    @ApiResponse(
+            responseCode = "400",
+            description = "Invalid request (validation errors)",
+            content =
+                    @Content(
+                            mediaType = "application/problem+json",
+                            schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(
+            responseCode = "401",
+            description = "Unauthorized — invalid or missing JWT",
+            content =
+                    @Content(
+                            mediaType = "application/problem+json",
+                            schema = @Schema(implementation = ProblemDetail.class)))
     public ResponseEntity<UrlResponse> createUrl(
             @Valid @RequestBody CreateUrlRequest request, JwtAuthenticationToken auth) {
         String userId = auth.getToken().getSubject();
@@ -50,9 +67,24 @@ public class UrlController {
     @Operation(
             summary = "Get a short URL by shortcode",
             description = "Retrieves the details of a short URL owned by the authenticated user.")
-    @ApiResponse(responseCode = "200", description = "URL details returned")
-    @ApiResponse(responseCode = "404", description = "URL not found", content = @Content)
-    @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content)
+    @ApiResponse(
+            responseCode = "200",
+            description = "URL details returned",
+            content = @Content(mediaType = "application/json", schema = @Schema(implementation = UrlResponse.class)))
+    @ApiResponse(
+            responseCode = "404",
+            description = "URL not found",
+            content =
+                    @Content(
+                            mediaType = "application/problem+json",
+                            schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(
+            responseCode = "401",
+            description = "Unauthorized",
+            content =
+                    @Content(
+                            mediaType = "application/problem+json",
+                            schema = @Schema(implementation = ProblemDetail.class)))
     public ResponseEntity<UrlResponse> getUrl(
             @Parameter(description = "The shortcode to look up") @PathVariable String shortcode,
             JwtAuthenticationToken auth) {
@@ -65,7 +97,13 @@ public class UrlController {
             summary = "List all short URLs",
             description = "Returns a paginated list of short URLs owned by the authenticated user.")
     @ApiResponse(responseCode = "200", description = "Paginated list of URLs")
-    @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content)
+    @ApiResponse(
+            responseCode = "401",
+            description = "Unauthorized",
+            content =
+                    @Content(
+                            mediaType = "application/problem+json",
+                            schema = @Schema(implementation = ProblemDetail.class)))
     public ResponseEntity<Page<UrlResponse>> listUrls(JwtAuthenticationToken auth, Pageable pageable) {
         String userId = auth.getToken().getSubject();
         return ResponseEntity.ok(urlService.listUrls(userId, pageable));
@@ -76,9 +114,27 @@ public class UrlController {
             summary = "Delete a short URL",
             description = "Permanently removes a short URL. Only the owner can delete their URLs.")
     @ApiResponse(responseCode = "204", description = "URL deleted successfully")
-    @ApiResponse(responseCode = "404", description = "URL not found", content = @Content)
-    @ApiResponse(responseCode = "403", description = "Not owner of this URL", content = @Content)
-    @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content)
+    @ApiResponse(
+            responseCode = "404",
+            description = "URL not found",
+            content =
+                    @Content(
+                            mediaType = "application/problem+json",
+                            schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(
+            responseCode = "403",
+            description = "Not owner of this URL",
+            content =
+                    @Content(
+                            mediaType = "application/problem+json",
+                            schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(
+            responseCode = "401",
+            description = "Unauthorized",
+            content =
+                    @Content(
+                            mediaType = "application/problem+json",
+                            schema = @Schema(implementation = ProblemDetail.class)))
     public ResponseEntity<Void> deleteUrl(
             @Parameter(description = "The shortcode to delete") @PathVariable String shortcode,
             JwtAuthenticationToken auth) {
