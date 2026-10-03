@@ -84,7 +84,9 @@ line 80% / branch 70% (JaCoCo `check`); the merged report lands in `target/site/
 - Links are owned by the token's `sub`. `UrlController.ownerOf` is where that claim is read and
   where a token without one is rejected — a link registered under no subject could never be read
   back, not even by its creator. Stats are scoped by owner, and a link you do not own is a **404,
-  not 403**, because a 403 would confirm the code exists. `resolveAndCountClick` stays owner-agnostic
+  not 403**, because a 403 would confirm the code exists — the paged listing is scoped the same way
+  but returns an empty page rather than a 404, since it is not keyed by a code.
+  `resolveAndCountClick` stays owner-agnostic
   (the redirect is public) and short codes stay globally unique: a public redirect cannot resolve a
   per-user namespace.
 - Every integration suite except `KeycloakAuthenticationIT` gets a mocked `JwtDecoder` from

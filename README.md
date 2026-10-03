@@ -77,10 +77,12 @@ before the app — which is why `spring-boot:run` starts it. A missing or invali
 
 ### Ownership
 
-A link belongs to the subject of the token that registered it. `GET /api/v1/url/stats/{code}`,
-`GET /api/v1/url/links` and `DELETE /api/v1/url/links/{code}` all answer for that subject only —
-everybody else gets the same `404` as an unknown code, so stats never confirm that somebody else's
-link exists.
+A link belongs to the subject of the token that registered it, and every owner-scoped endpoint
+answers for that subject alone. The two keyed by a single code —
+`GET /api/v1/url/stats/{code}` and `DELETE /api/v1/url/links/{code}` — answer another caller with
+the same `404` as an unknown code, so neither ever confirms that somebody else's link exists.
+`GET /api/v1/url/links` has no single code to hide behind and simply returns an empty page (`200`
+with `totalElements` 0) for links you do not own.
 
 Short codes stay **globally** unique rather than being namespaced per user, because the redirect is
 public and carries no user: `GET /{shortCode}` has to resolve a code to one destination on its own. So
@@ -88,7 +90,8 @@ a second person asking for a code you already hold still gets the `409`. Followi
 never scoped — anyone with the link can follow it, and the click is counted the same.
 
 Links registered before ownership existed (the `V2` migration left them rather than deleting them)
-keep redirecting, but their stats are unreadable to everyone.
+keep redirecting, but they have no owner to match: their stats are unreadable to everyone and they
+appear in nobody's listing.
 
 ### Interactive documentation
 
@@ -202,6 +205,9 @@ Newest first, and only your own links — the owner is part of the query, not a 
 it, so another user's links can never fill a page. `page` is zero-based and `size` is capped at 100;
 `totalElements` is how many there are to walk. A negative `page`, or a `size` outside `1..100`, is a
 `400` `/problems/validation-failed` naming the offending field in `errors`.
+
+This is a page at a time, not the whole set: one response never carries more than 100 links, however
+many you own.
 
 Each entry in `content` is exactly what `GET /api/v1/url/stats/{code}` returns for that link, so the
 listing is the cheap way to walk everything you own.
