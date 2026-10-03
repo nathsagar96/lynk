@@ -1,9 +1,9 @@
-* @sagar
-main @sagar
--develop @sagar
+# Default owner for every file in the repository.
+# (@nathsagar96 is the repository owner on GitHub; a CODEOWNERS entry is only
+# honored if that account has write access to the repo.)
+* @nathsagar96
 
-# This file specifies that changes to main and develop branches require
-# review and approval from the maintainers (@sagar) before merging.
-
-# All repository changes default to maintainer review
-# Changes to main and develop explicitly require maintainer approval
+# NOTE: CODEOWNERS patterns match file *paths*, not branch names, so they cannot
+# express "main and develop require approval". Branch protection with required
+# reviewers is a repository setting (Settings -> Branches -> Rules) and is
+# documented in CONTRIBUTING.md.
