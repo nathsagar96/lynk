@@ -39,14 +39,20 @@ public class UrlShortenerService {
     @Transactional
     public ShortenUrlResponse shorten(ShortenUrlRequest request) {
         String originalUrl = validator.validateUrl(request.url());
-        Instant expiresAt = expiryFor(request.hoursToExpire());
+        Instant expiresAt = (request.hoursToExpire() == null)
+                ? null
+                : Instant.now().plus(request.hoursToExpire(), ChronoUnit.HOURS);
 
         UrlMapping mapping =
                 (request.customAlias() != null && !request.customAlias().isBlank())
                         ? saveWithAlias(validator.validateAlias(request.customAlias()), originalUrl, expiresAt)
                         : saveWithGeneratedCode(originalUrl, expiresAt);
 
-        return toResponse(mapping);
+        return new ShortenUrlResponse(
+                buildShortUrl(mapping.getShortCode()),
+                mapping.getShortCode(),
+                mapping.getOriginalUrl(),
+                mapping.getExpiresAt());
     }
 
     /**
@@ -109,18 +115,6 @@ public class UrlShortenerService {
             }
         }
         throw new IllegalStateException("unreachable: retry loop always returns or rethrows");
-    }
-
-    private Instant expiryFor(Integer hoursToExpire) {
-        return (hoursToExpire == null) ? null : Instant.now().plus(hoursToExpire, ChronoUnit.HOURS);
-    }
-
-    private ShortenUrlResponse toResponse(UrlMapping mapping) {
-        return new ShortenUrlResponse(
-                buildShortUrl(mapping.getShortCode()),
-                mapping.getShortCode(),
-                mapping.getOriginalUrl(),
-                mapping.getExpiresAt());
     }
 
     private String buildShortUrl(String shortCode) {

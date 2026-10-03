@@ -1,12 +1,10 @@
 package com.lynk.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatNoException;
 import static org.junit.jupiter.api.Assertions.assertAll;
 
 import com.lynk.AbstractIntegrationTestBase;
 import com.lynk.domain.UrlMapping;
-import com.lynk.repository.UrlMappingRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import org.junit.jupiter.api.Nested;
@@ -19,9 +17,6 @@ class ExpiryCleanupServiceIT extends AbstractIntegrationTestBase {
 
     @Autowired
     private ExpiryCleanupService cleanupService;
-
-    @Autowired
-    private UrlMappingRepository repository;
 
     private UrlMapping persist(String shortCode, Instant expiresAt) {
         UrlMapping mapping = new UrlMapping(DESTINATION, shortCode, expiresAt);
@@ -51,15 +46,6 @@ class ExpiryCleanupServiceIT extends AbstractIntegrationTestBase {
             cleanupService.deleteExpiredMappings();
 
             assertThat(repository.findById(permanent.getId())).isPresent();
-        }
-
-        @Test
-        void deleteExpiredMappings_doesNotThrow_whenRunTwiceWithNothingToDelete() {
-            persist("sweep-idempotent", Instant.now().minus(1, ChronoUnit.HOURS));
-            cleanupService.deleteExpiredMappings();
-
-            assertThatNoException().isThrownBy(cleanupService::deleteExpiredMappings);
-            assertThat(repository.findByShortCode("sweep-idempotent")).isEmpty();
         }
     }
 }

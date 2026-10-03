@@ -2,7 +2,6 @@ package com.lynk.error;
 
 import java.time.Instant;
 import java.util.Collection;
-import java.util.StringJoiner;
 import org.springframework.http.HttpStatus;
 
 /** Single application exception; carries its own RFC 9457 status, type and title. */
@@ -56,13 +55,11 @@ public class LinkException extends RuntimeException {
     }
 
     public static LinkException reserved(String alias, Collection<String> reserved) {
-        StringJoiner joiner = new StringJoiner(", ");
-        reserved.forEach(joiner::add);
         return new LinkException(
                 HttpStatus.BAD_REQUEST,
                 "Reserved alias",
                 "/problems/reserved-alias",
-                "The alias '" + alias + "' is reserved. Reserved aliases: " + joiner + ".");
+                "The alias '" + alias + "' is reserved. Reserved aliases: " + String.join(", ", reserved) + ".");
     }
 
     public static LinkException invalid(String detail) {

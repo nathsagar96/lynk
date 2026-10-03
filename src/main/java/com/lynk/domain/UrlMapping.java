@@ -6,7 +6,6 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
-import jakarta.persistence.Table;
 import java.time.Instant;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -20,7 +19,6 @@ import lombok.Setter;
  * agree with it, which Hibernate checks at startup via {@code ddl-auto=validate}.
  */
 @Entity
-@Table(name = "url_mapping")
 @Getter
 @Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -63,9 +61,7 @@ public class UrlMapping {
 
     @PrePersist
     void onCreate() {
-        if (this.createdAt == null) {
-            this.createdAt = Instant.now();
-        }
+        this.createdAt = Instant.now();
     }
 
     /**
