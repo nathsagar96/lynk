@@ -271,9 +271,13 @@ src/test/java/com/lynk/            *Test = @Tag("unit"), *IT = @Tag("integration
 
 ## Design notes
 
+These are summaries. The reasoning behind each of them — the alternatives considered and the costs
+accepted — is recorded in `docs/adr/`, which is where to look before changing any of them.
+
 **Short codes are random.** Encoding the row id in base-62 would leak sequential ids, so codes come
 from `SecureRandom` instead, with a retry on the unique constraint to cover the rare collision. With
-62^7 possible codes the retry almost never fires.
+62^7 possible codes the retry almost never fires. See
+[ADR 0002](docs/adr/0002-random-short-codes.md).
 
 **Click counting is a single-column atomic update.** Redirects are the hot path, so they run
 `click_count = click_count + 1` rather than loading the entity, mutating it and saving. That is
@@ -281,12 +285,17 @@ correct under concurrent redirects, which the read-modify-write version is not. 
 method sets `flushAutomatically` and `clearAutomatically` so the mapping read earlier in the same
 transaction cannot be flushed back over the counter.
 
+**The redirect is `302` with `Cache-Control: no-store`.** Both are required, and neither is
+sufficient alone: a `301` is cached permanently by clients, so it would freeze the destination and
+skip the click count forever, while a bare `302` is still heuristically cacheable by a proxy. See
+[ADR 0003](docs/adr/0003-redirect-302-no-store.md).
+
 **Flyway owns the schema.** `ddl-auto` is `validate`, so Hibernate verifies the entities match
 `V1__create_url_mapping.sql` and never issues DDL. Change the migration, not the database.
 
 **Timestamps are `timestamptz` mapped to `Instant`.** `LocalDateTime` carries no zone, and pairing
 it with `timestamptz` quietly makes expiry depend on the JVM's default zone. `Instant` makes the
-comparison unambiguous.
+comparison unambiguous. See [ADR 0004](docs/adr/0004-timestamps-as-instant.md).
 
 **The redirect route is constrained.** `/{shortCode:[A-Za-z0-9_-]{3,32}}` rather than
 `/{shortCode}`. Without the bound, a bare single-segment path like `/error` would be treated as a
@@ -294,7 +303,8 @@ missing short URL instead of a missing page. Note that `error` falls *inside* th
 why it is in `reserved-words` and cannot be claimed as a custom alias.
 
 **Virtual threads are enabled** (`spring.threads.virtual.enabled`). A redirect is one indexed read
-plus one atomic update, which is exactly the I/O-bound profile virtual threads suit.
+plus one atomic update, which is exactly the I/O-bound profile virtual threads suit. See
+[ADR 0001](docs/adr/0001-virtual-threads.md).
 
 **Expiry is enforced on the read path, not by the sweeper.** `resolveAndCountClick` re-checks
 `expires_at` in the same transaction as the increment, so a link stops redirecting the moment it
