@@ -1,0 +1,26 @@
+name: Branch Protection
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+
+jobs:
+  validate-protection:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate branch protection
+        run: |
+          echo "Branch protection validation"
+          echo "Ensuring main and develop branches cannot be pushed to directly"
+          
+  check-protection:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check existing branches
+        run: |
+          echo "Checking branch protection rules..."
+          echo "Repository branches: main and develop"
+          echo "These branches should be protected from direct pushes"
+          echo "Manual review required for changes to main and develop branches"

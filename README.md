@@ -360,7 +360,20 @@ months from now.
 
 ### Branching
 
-`main` is the default branch and is expected to stay green. Branch off it for anything non-trivial:
+**Protected Branches**: `main` and `develop` cannot be modified directly. Changes must go through pull requests.
+
+- `main` is the default branch and is expected to stay green. Branch off it for anything non-trivial:
+- `develop` is used for feature integration and testing
+
+**Development Workflow**:
+1. Create a feature branch from `develop`: `git switch -c feature/<user>/<feature-name>`
+2. Make your changes and push them to your feature branch
+3. Create a pull request targeting `develop` for features or `main` for hotfixes
+4. Wait for CI tests to pass and get required approvals
+5. Merge through the pull request (using squash or rebase)
+6. Delete the feature branch: `git branch -d feature/<user>/<feature-name>`
+
+**Merges back to `main`** use `--no-ff`, so the branch is visible in the history and the reason for the change survives in its commits.
 
 ```console
 git switch -c fix/alias-race-on-409
