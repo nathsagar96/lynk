@@ -20,6 +20,10 @@ spring:
     virtual:
       enabled: true
 
+# The API is JSON; springdoc defaults to */* for what it produces.
+springdoc:
+  default-produces-media-type: application/json
+
 lynk:
   # Absolute base used to build the shortUrl returned to callers. Must match how the service is
   # reached from outside, so it is an environment variable rather than a hardcoded default.

@@ -1,6 +1,7 @@
 package com.lynk.controller;
 
 import com.lynk.service.UrlShortenerService;
+import io.swagger.v3.oas.annotations.Hidden;
 import java.net.URI;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.CacheControl;
@@ -12,7 +13,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * Resolves short codes to their destination.
+ * <p>
+ * {@code @Hidden} keeps this out of the OpenAPI document. It is a route for browsers following a
+ * link rather than an operation a client calls: there is no body to describe, and the shared code
+ * pattern is documented on {@code GET /api/v1/url/stats/{shortCode}}, which takes the same code.
+ * Leaving it in would render {@code /{shortCode}} as a catch-all that reads as "every other path"
+ * and makes the document describe routes nobody calls this way.
  */
+@Hidden
 @RestController
 @RequiredArgsConstructor
 public class RedirectController {
