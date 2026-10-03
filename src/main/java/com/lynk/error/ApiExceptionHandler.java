@@ -18,47 +18,19 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 
 /**
  * Every error the API can return, in one place, as RFC 9457 problem documents.
- * <p>
- * The application exceptions carry only a message and no HTTP knowledge: the status, title and
- * problem type for each one are declared here, so the full error contract of the service can be
- * read top to bottom without leaving this file.
- * <p>
- * Extending {@link ResponseEntityExceptionHandler} covers the framework's own exceptions, and
- * Boot registers its equivalent advice only when none is present, so this class takes its place.
- * Requires {@code spring.mvc.problemdetails.enabled=true}.
+ *
+ * <p>Requires {@code spring.mvc.problemdetails.enabled=true}.
  */
 @RestControllerAdvice
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
-    @ExceptionHandler(UrlNotFoundException.class)
-    public ResponseEntity<ProblemDetail> handleUrlNotFound(UrlNotFoundException ex, WebRequest request) {
-        return respond(
-                HttpStatus.NOT_FOUND, "Short URL not found", "/problems/url-not-found", ex.getMessage(), request);
-    }
-
-    /**
-     * 410 Gone rather than 404, because the resource did once exist and the caller holding a stale
-     * link deserves to know it will never come back.
-     */
-    @ExceptionHandler(UrlExpiredException.class)
-    public ResponseEntity<ProblemDetail> handleUrlExpired(UrlExpiredException ex, WebRequest request) {
-        return respond(HttpStatus.GONE, "Short URL expired", "/problems/url-expired", ex.getMessage(), request);
-    }
-
-    @ExceptionHandler(AliasAlreadyExistsException.class)
-    public ResponseEntity<ProblemDetail> handleAliasAlreadyExists(AliasAlreadyExistsException ex, WebRequest request) {
-        return respond(
-                HttpStatus.CONFLICT, "Alias already exists", "/problems/alias-conflict", ex.getMessage(), request);
-    }
-
-    @ExceptionHandler(ReservedAliasException.class)
-    public ResponseEntity<ProblemDetail> handleReservedAlias(ReservedAliasException ex, WebRequest request) {
-        return respond(HttpStatus.BAD_REQUEST, "Reserved alias", "/problems/reserved-alias", ex.getMessage(), request);
-    }
-
-    @ExceptionHandler(InvalidUrlException.class)
-    public ResponseEntity<ProblemDetail> handleInvalidUrl(InvalidUrlException ex, WebRequest request) {
-        return respond(HttpStatus.BAD_REQUEST, "Invalid request", "/problems/invalid-url", ex.getMessage(), request);
+    @ExceptionHandler(LinkException.class)
+    public ResponseEntity<ProblemDetail> handleLink(LinkException ex, WebRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(ex.status(), ex.getMessage());
+        problem.setTitle(ex.title());
+        problem.setType(URI.create(ex.type()));
+        problem.setInstance(instanceOf(request));
+        return ResponseEntity.status(ex.status()).body(problem);
     }
 
     /**
@@ -111,16 +83,6 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setInstance(instanceOf(request));
 
         return ResponseEntity.status(status).headers(headers).body(problem);
-    }
-
-    private ResponseEntity<ProblemDetail> respond(
-            HttpStatus status, String title, String type, String detail, WebRequest request) {
-
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
-        problem.setTitle(title);
-        problem.setType(URI.create(type));
-        problem.setInstance(instanceOf(request));
-        return ResponseEntity.status(status).body(problem);
     }
 
     private URI instanceOf(WebRequest request) {

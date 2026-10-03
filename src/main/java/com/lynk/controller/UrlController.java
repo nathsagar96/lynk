@@ -5,6 +5,7 @@ import com.lynk.dto.request.ShortenUrlRequest;
 import com.lynk.dto.response.ShortenUrlResponse;
 import com.lynk.dto.response.UrlStatsResponse;
 import com.lynk.service.UrlShortenerService;
+import com.lynk.service.UrlValidator;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.headers.Header;
@@ -101,7 +102,7 @@ public class UrlController {
                                 mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
                                 schema = @Schema(implementation = ProblemDetail.class)))
     })
-    @GetMapping("/stats/{shortCode:[A-Za-z0-9_-]{3,32}}")
+    @GetMapping("/stats/{shortCode:" + UrlValidator.CODE_REGEX + "}")
     public ResponseEntity<UrlStatsResponse> stats(
             @Parameter(
                             description = "The short code to look up, as used in the path of the short link",

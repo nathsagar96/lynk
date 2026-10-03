@@ -5,17 +5,17 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.TestPropertySource;
+import org.testcontainers.postgresql.PostgreSQLContainer;
+import org.testcontainers.utility.DockerImageName;
 
-/**
- * Base for tests that need a real PostgreSQL with Flyway migrations applied.
- * <p>
- * The container is a single instance shared by the whole test run, so the table is emptied before
- * each test to keep them order-independent.
- */
+/** Base for tests that need a real PostgreSQL with Flyway migrations applied. */
 @Tag("integration")
-@Import(TestcontainersConfiguration.class)
+@Import(AbstractIntegrationTestBase.Postgres.class)
 @SpringBootTest
 @TestPropertySource(properties = "lynk.base-url=http://localhost:8080")
 public abstract class AbstractIntegrationTestBase {
@@ -27,5 +27,15 @@ public abstract class AbstractIntegrationTestBase {
     void clearMappings() {
         repository.deleteAll();
         repository.flush();
+    }
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class Postgres {
+
+        @Bean
+        @ServiceConnection
+        PostgreSQLContainer postgresContainer() {
+            return new PostgreSQLContainer(DockerImageName.parse("postgres:18-alpine"));
+        }
     }
 }

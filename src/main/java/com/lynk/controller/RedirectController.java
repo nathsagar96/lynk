@@ -1,6 +1,7 @@
 package com.lynk.controller;
 
 import com.lynk.service.UrlShortenerService;
+import com.lynk.service.UrlValidator;
 import io.swagger.v3.oas.annotations.Hidden;
 import java.net.URI;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +32,7 @@ public class RedirectController {
      * pattern matches the alphabet and bounds used for alias validation, so aliases and generated
      * codes are indistinguishable here.
      */
-    private static final String CODE_PATH = "/{shortCode:[A-Za-z0-9_-]{3,32}}";
+    private static final String CODE_PATH = "/{shortCode:" + UrlValidator.CODE_REGEX + "}";
 
     private final UrlShortenerService urlShortenerService;
 

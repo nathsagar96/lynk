@@ -16,7 +16,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,7 +36,6 @@ import org.springframework.transaction.support.TransactionTemplate;
  */
 @Tag("integration")
 @TestPropertySource(properties = "spring.datasource.hikari.maximum-pool-size=10")
-@DisplayName("UrlMappingRepository.incrementClickCount")
 class UrlMappingRepositoryConcurrencyIT extends AbstractIntegrationTestBase {
 
     /**
@@ -59,14 +57,11 @@ class UrlMappingRepositoryConcurrencyIT extends AbstractIntegrationTestBase {
      * Runs one increment per worker against the same row and asserts every single one lands.
      */
     @Test
-    @DisplayName("loses no increments when concurrent transactions update the same row")
     void incrementClickCount_losesNoUpdates_whenRacingConcurrentTransactions() throws Exception {
-        // Arrange
         service.shorten(new ShortenUrlRequest(DESTINATION, ALIAS, null));
         CyclicBarrier startLine = new CyclicBarrier(WORKERS);
         List<Throwable> failures = new CopyOnWriteArrayList<>();
 
-        // Act
         try (ExecutorService workers = Executors.newVirtualThreadPerTaskExecutor()) {
             List<Future<?>> inFlight = new ArrayList<>(WORKERS);
             for (int i = 0; i < WORKERS; i++) {
@@ -77,7 +72,6 @@ class UrlMappingRepositoryConcurrencyIT extends AbstractIntegrationTestBase {
             }
         }
 
-        // Assert
         assertThat(failures).isEmpty();
         UrlMapping reloaded = repository.findByShortCode(ALIAS).orElseThrow();
         assertThat(reloaded.getClickCount()).isEqualTo(WORKERS);
