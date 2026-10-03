@@ -65,8 +65,7 @@ public class UrlShortenerService {
     public String resolveAndCountClick(String shortCode) {
         UrlMapping mapping = repository.findByShortCode(shortCode).orElseThrow(() -> LinkException.notFound(shortCode));
 
-        Instant now = Instant.now();
-        if (mapping.isExpired(now)) {
+        if (mapping.isExpired(Instant.now())) {
             throw LinkException.expired(shortCode, mapping.getExpiresAt());
         }
 
