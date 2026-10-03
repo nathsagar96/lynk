@@ -224,6 +224,11 @@ them means a failing unit test stops the build before the container-backed suite
 Every build also runs Spotless (`palantirJavaFormat`) in the `validate` phase, so a formatting
 violation fails `./mvnw test` before a single test executes. Fix it with `./mvnw spotless:apply`.
 
+JaCoCo runs on every build: `prepare-agent` instruments both suites into a single
+`target/jacoco.exec`, `report` writes the merged HTML/XML/CSV report to `target/site/jacoco/`, and
+`check` fails `./mvnw verify` if bundle coverage drops below line 80% / branch 70%, measured across
+unit *and* integration tests together. `-Djacoco.skip=true` bypasses the gate.
+
 The integration tests are independent of `compose.yaml`: Docker Compose support is disabled during
 test runs, so the two do not fight over a database.
 
