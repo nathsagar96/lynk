@@ -47,6 +47,12 @@ CI runs `./mvnw -B verify` on Java 25 (Temurin).
   silently corrupts click counts.
 - All errors go through the single `@RestControllerAdvice` as RFC 9457 problem
   documents; branch clients on `type`/`status`, never `detail`.
+- `RedirectController` is `@Hidden` — the redirect route is for browsers following a
+  link, not an operation a client calls, and in the OpenAPI doc it would read as a
+  catch-all `/{shortCode}`. Don't document it or remove the annotation.
+- Examples belong on the DTO fields as `@Schema(example = ...)`, never as `@ExampleObject`
+  on an operation or a response. Problem-document responses carry **no** example at all;
+  name the possible `type` values in the `@ApiResponse` description instead.
 
 ## Running
 
@@ -54,5 +60,6 @@ CI runs `./mvnw -B verify` on Java 25 (Temurin).
   to a random host port, and tears it down on exit. `POSTGRES_PASSWORD` has no default
   in `compose.prod.yaml`; the prod stack refuses to start without it and `APP_BASE_URL`,
   and `APP_BASE_URL` is baked into every returned `shortUrl`.
-- `prod` profile disables docker-compose and enables graceful shutdown; don't enable
-  compose support there.
+- `prod` profile disables docker-compose, enables graceful shutdown and sets
+  `springdoc.api-docs.enabled=false` (which also takes the Swagger UI down, since both come from the
+  same autoconfiguration); don't enable compose support there.

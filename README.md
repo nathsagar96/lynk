@@ -11,6 +11,7 @@ Built with Spring Boot 4.1, Java 25 and PostgreSQL. API only — there is no web
 - **Expiration**: any link can be given a time-to-live, and expired links stop redirecting
 - **Click tracking** via an atomic counter, safe under concurrent redirects
 - **RFC 9457 problem details** for every error response
+- **OpenAPI 3.1** contract with Swagger UI, generated from the controllers and DTOs
 - **Nightly cleanup** that deletes expired links
 - **Containerised** with a multi-stage build and a Compose stack
 
@@ -50,6 +51,27 @@ $ curl -sI http://localhost:8080/readme-demo
 | `GET`  | `/{shortCode}`             | `302`   | redirects and increments the click count  |
 | `GET`  | `/api/v1/url/stats/{code}` | `200`   | click stats, including for expired links  |
 | `GET`  | `/actuator/health`         | `200`   | health, including the database connection |
+
+### Interactive documentation
+
+The OpenAPI 3.1 description is served at `/v3/api-docs` and rendered with Swagger UI at
+`/swagger-ui.html`, so you can try the endpoints against a running instance:
+
+```console
+$ open http://localhost:8080/swagger-ui.html
+```
+
+Everything in the document is derived from the code: operations from the controllers, field
+descriptions and examples from the DTOs, and the problem documents from `ApiExceptionHandler`. Two
+things are worth knowing about it:
+
+- `GET /{shortCode}` is deliberately **not** in the document. It is a route for browsers following a
+  short link rather than an operation a client calls, and left in it would appear as a catch-all
+  `/{shortCode}` that reads as "every other path".
+- The problem-document responses are documented without example bodies. `type` is the stable handle
+  to branch on, so the description names the possible types instead of showing a sample.
+
+Both endpoints are disabled under the `prod` profile — see [Configuration](#configuration).
 
 ### Shorten a URL
 
@@ -252,14 +274,16 @@ Non-secret settings live under `lynk.*` in `application.yml`:
 
 The `prod` profile additionally sets `spring.docker.compose.enabled=false` and
 `server.shutdown=graceful`, so the container never shells out to Docker and in-flight redirects
-finish on shutdown.
+finish on shutdown. It also sets `springdoc.api-docs.enabled=false`, which takes the Swagger UI
+down with it: nothing authenticates this service, so the generated contract is a development aid
+rather than something to publish.
 
 ## Project layout
 
 ```
 src/main/java/com/lynk/
   config/       @ConfigurationProperties record, @EnableScheduling
-  controller/   the two HTTP entry points: /api/v1/url/* and /{shortCode}
+  controller/   the two HTTP entry points: /api/v1/url/* and /{shortCode} (@Hidden from the OpenAPI doc)
   domain/       the UrlMapping entity
   dto/          request and response records — the entity never leaves the service
   error/        exceptions plus the single @RestControllerAdvice that maps them to problem details

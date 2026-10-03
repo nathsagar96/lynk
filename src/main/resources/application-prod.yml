@@ -12,5 +12,10 @@ spring:
     compose:
       enabled: false
 
+# Nothing authenticates this service, so the generated contract is not served in production.
+springdoc:
+  api-docs:
+    enabled: false
+
 server:
   shutdown: graceful
