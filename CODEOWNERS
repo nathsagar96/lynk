@@ -1,0 +1,9 @@
+* @sagar
+main @sagar
+-develop @sagar
+
+# This file specifies that changes to main and develop branches require
+# review and approval from the maintainers (@sagar) before merging.
+
+# All repository changes default to maintainer review
+# Changes to main and develop explicitly require maintainer approval
