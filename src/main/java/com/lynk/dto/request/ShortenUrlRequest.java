@@ -25,9 +25,7 @@ public record ShortenUrlRequest(
                 description = "A code chosen by the caller instead of a generated one. 3-32 characters of "
                         + "`A-Za-z0-9_-`, not a reserved word, and not already taken.",
                 example = "readme-demo",
-                pattern = "^[A-Za-z0-9_-]{3,32}$",
-                minLength = 3,
-                maxLength = 32)
+                pattern = "^[A-Za-z0-9_-]{3,32}$")
         String customAlias,
 
         @Min(value = 1, message = "hoursToExpire must be at least 1")

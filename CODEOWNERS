@@ -4,6 +4,5 @@
 * @nathsagar96
 
 # NOTE: CODEOWNERS patterns match file *paths*, not branch names, so they cannot
-# express "main and develop require approval". Branch protection with required
-# reviewers is a repository setting (Settings -> Branches -> Rules) and is
-# documented in CONTRIBUTING.md.
+# express "main and develop require approval". That is a repository setting
+# (Settings -> Branches -> Rules).
