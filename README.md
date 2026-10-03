@@ -376,12 +376,12 @@ months from now.
 - `develop` is used for feature integration and testing
 
 **Development Workflow**:
-1. Create a feature branch from `develop`: `git switch -c feature/<user>/<feature-name>`
+1. Create a feature branch from `develop`: `git switch -c feature/<feature-name>`
 2. Make your changes and push them to your feature branch
 3. Create a pull request targeting `develop` for features or `main` for hotfixes
 4. Wait for CI tests to pass and get required approvals
 5. Merge through the pull request (using squash or rebase)
-6. Delete the feature branch: `git branch -d feature/<user>/<feature-name>`
+6. Delete the feature branch: `git branch -d feature/<feature-name>`
 
 **Merges back to `main`** use `--no-ff`, so the branch is visible in the history and the reason for the change survives in its commits.
 

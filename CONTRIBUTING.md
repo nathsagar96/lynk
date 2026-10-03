@@ -28,8 +28,8 @@ Protected branch merges typically require:
 ### Branch Naming Convention
 
 Feature branches should follow the pattern:
-- `feature/<user>/<feature-name>`
-- `fix/<user>/<issue-number>`
+- `feature/<feature-name>`
+- `fix/<issue-number>`
 
 ### Emergency Fixes
 
