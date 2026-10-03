@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import com.lynk.AbstractIntegrationTestBase;
 import com.lynk.domain.UrlMapping;
 import com.lynk.dto.request.ShortenUrlRequest;
+import com.lynk.dto.response.LinkPageResponse;
 import com.lynk.dto.response.ShortenUrlResponse;
 import com.lynk.dto.response.UrlStatsResponse;
 import com.lynk.error.LinkException;
@@ -22,15 +23,19 @@ class UrlShortenerServiceIT extends AbstractIntegrationTestBase {
 
     private static final String DESTINATION = "https://example.com/landing";
 
+    private static final String OWNER = "owner-subject";
+
+    private static final String OTHER = "other-subject";
+
     @Autowired
     private UrlShortenerService service;
 
     private ShortenUrlResponse shorten(String url) {
-        return service.shorten(new ShortenUrlRequest(url, null, null));
+        return service.shorten(new ShortenUrlRequest(url, null, null), OWNER);
     }
 
     private ShortenUrlResponse shortenWithAlias(String url, String alias) {
-        return service.shorten(new ShortenUrlRequest(url, alias, null));
+        return service.shorten(new ShortenUrlRequest(url, alias, null), OWNER);
     }
 
     /**
@@ -115,7 +120,7 @@ class UrlShortenerServiceIT extends AbstractIntegrationTestBase {
         void shorten_setsExpiry_whenHoursToExpireSupplied() {
             Instant before = Instant.now().plus(23, ChronoUnit.HOURS);
 
-            ShortenUrlResponse response = service.shorten(new ShortenUrlRequest(DESTINATION, "ttl-alias", 24));
+            ShortenUrlResponse response = service.shorten(new ShortenUrlRequest(DESTINATION, "ttl-alias", 24), OWNER);
 
             assertThat(response.expiresAt()).isAfter(before);
         }
@@ -202,7 +207,7 @@ class UrlShortenerServiceIT extends AbstractIntegrationTestBase {
             shortenWithAlias(DESTINATION, "stats-alias");
             service.resolveAndCountClick("stats-alias");
 
-            UrlStatsResponse stats = service.stats("stats-alias");
+            UrlStatsResponse stats = service.stats("stats-alias", OWNER);
 
             assertAll(
                     () -> assertThat(stats.originalUrl()).isEqualTo(DESTINATION),
@@ -216,7 +221,7 @@ class UrlShortenerServiceIT extends AbstractIntegrationTestBase {
             shortenWithAlias(DESTINATION, "gone-alias");
             expireNow("gone-alias");
 
-            UrlStatsResponse stats = service.stats("gone-alias");
+            UrlStatsResponse stats = service.stats("gone-alias", OWNER);
 
             assertAll(
                     () -> assertThat(stats.originalUrl()).isEqualTo(DESTINATION),
@@ -225,7 +230,152 @@ class UrlShortenerServiceIT extends AbstractIntegrationTestBase {
 
         @Test
         void stats_throwsUrlNotFound_whenCodeIsUnknown() {
-            assertThatThrownBy(() -> service.stats("nosuchcode"))
+            assertThatThrownBy(() -> service.stats("nosuchcode", OWNER))
+                    .isInstanceOfSatisfying(
+                            LinkException.class, e -> assertThat(e.type()).isEqualTo("/problems/url-not-found"));
+        }
+    }
+
+    @Nested
+    class Ownership {
+
+        @Test
+        void shorten_attributesTheLinkToTheSubjectThatRegisteredIt() {
+            service.shorten(new ShortenUrlRequest(DESTINATION, "owned-alias", null), OWNER);
+
+            UrlMapping persisted = repository.findByShortCode("owned-alias").orElseThrow();
+
+            assertThat(persisted.getOwner()).isEqualTo(OWNER);
+        }
+
+        @Test
+        void stats_readsBack_whenTheOwnerAsks() {
+            service.shorten(new ShortenUrlRequest(DESTINATION, "owner-reads", null), OWNER);
+
+            UrlStatsResponse stats = service.stats("owner-reads", OWNER);
+
+            assertThat(stats.originalUrl()).isEqualTo(DESTINATION);
+        }
+
+        @Test
+        void stats_throwsUrlNotFound_whenAnotherSubjectAsks() {
+            service.shorten(new ShortenUrlRequest(DESTINATION, "private-alias", null), OWNER);
+
+            assertThatThrownBy(() -> service.stats("private-alias", OTHER))
+                    .isInstanceOfSatisfying(
+                            LinkException.class, e -> assertThat(e.type()).isEqualTo("/problems/url-not-found"));
+        }
+
+        @Test
+        void stats_throwsUrlNotFound_whenTheLinkPredatesOwnership() {
+            // A row from before the owner column existed. It has no subject to match, so it reads as
+            // missing rather than as readable by everyone.
+            repository.saveAndFlush(new UrlMapping(DESTINATION, "legacy-alias", null, null));
+
+            assertThatThrownBy(() -> service.stats("legacy-alias", OWNER))
+                    .isInstanceOfSatisfying(
+                            LinkException.class, e -> assertThat(e.type()).isEqualTo("/problems/url-not-found"));
+        }
+
+        @Test
+        void resolveAndCountClick_stillWorks_whenTheCallerIsNotTheOwner() {
+            service.shorten(new ShortenUrlRequest(DESTINATION, "shared-alias", null), OWNER);
+
+            assertThat(service.resolveAndCountClick("shared-alias")).isEqualTo(DESTINATION);
+        }
+
+        @Test
+        void shorten_throwsAliasConflict_whenAnotherSubjectAlreadyTookTheAlias() {
+            service.shorten(new ShortenUrlRequest(DESTINATION, "contested-alias", null), OWNER);
+
+            assertThatThrownBy(
+                            () -> service.shorten(new ShortenUrlRequest(DESTINATION, "contested-alias", null), OTHER))
+                    .isInstanceOfSatisfying(
+                            LinkException.class, e -> assertThat(e.type()).isEqualTo("/problems/alias-conflict"));
+        }
+    }
+
+    @Nested
+    class Links {
+
+        @Test
+        void list_returnsOnlyTheOwnersLinks_newestFirst() {
+            service.shorten(new ShortenUrlRequest(DESTINATION, "older-link", null), OWNER);
+            service.shorten(new ShortenUrlRequest(DESTINATION, "newer-link", null), OWNER);
+            service.shorten(new ShortenUrlRequest(DESTINATION, "their-link", null), OTHER);
+
+            LinkPageResponse page = service.list(OWNER, 0, 20);
+
+            assertAll(
+                    () -> assertThat(page.totalElements()).isEqualTo(2),
+                    () -> assertThat(page.content())
+                            .extracting(UrlStatsResponse::shortUrl)
+                            .containsExactly("http://localhost:8080/newer-link", "http://localhost:8080/older-link"));
+        }
+
+        @Test
+        void list_splitsAcrossPages_whenSizeIsSmallerThanTheTotal() {
+            service.shorten(new ShortenUrlRequest(DESTINATION, "page-one", null), OWNER);
+            service.shorten(new ShortenUrlRequest(DESTINATION, "page-two", null), OWNER);
+            service.shorten(new ShortenUrlRequest(DESTINATION, "page-three", null), OWNER);
+
+            LinkPageResponse first = service.list(OWNER, 0, 2);
+            LinkPageResponse second = service.list(OWNER, 1, 2);
+
+            assertAll(
+                    () -> assertThat(first.content()).hasSize(2),
+                    () -> assertThat(first.totalElements()).isEqualTo(3),
+                    () -> assertThat(second.content()).hasSize(1),
+                    () -> assertThat(second.content().getFirst().shortUrl())
+                            .isEqualTo("http://localhost:8080/page-one"));
+        }
+
+        @Test
+        void list_isEmpty_whenTheOwnerHasNoLinks() {
+            LinkPageResponse page = service.list("nobody-at-all", 0, 20);
+
+            assertAll(
+                    () -> assertThat(page.content()).isEmpty(),
+                    () -> assertThat(page.totalElements()).isZero());
+        }
+
+        @Test
+        void list_includesExpiredLinks() {
+            service.shorten(new ShortenUrlRequest(DESTINATION, "expired-listed", null), OWNER);
+            expireNow("expired-listed");
+
+            LinkPageResponse page = service.list(OWNER, 0, 20);
+
+            assertThat(page.content()).hasSize(1);
+        }
+
+        @Test
+        void delete_removesTheOwnersLink() {
+            service.shorten(new ShortenUrlRequest(DESTINATION, "doomed-link", null), OWNER);
+
+            service.delete("doomed-link", OWNER);
+
+            assertAll(
+                    () -> assertThat(repository.findByShortCode("doomed-link")).isEmpty(),
+                    () -> assertThat(service.list(OWNER, 0, 20).totalElements()).isZero(),
+                    () -> assertThatThrownBy(() -> service.stats("doomed-link", OWNER))
+                            .isInstanceOfSatisfying(
+                                    LinkException.class,
+                                    e -> assertThat(e.type()).isEqualTo("/problems/url-not-found")));
+        }
+
+        @Test
+        void delete_throwsUrlNotFound_whenTheLinkBelongsToAnotherSubject() {
+            service.shorten(new ShortenUrlRequest(DESTINATION, "not-yours", null), OWNER);
+
+            assertThatThrownBy(() -> service.delete("not-yours", OTHER))
+                    .isInstanceOfSatisfying(
+                            LinkException.class, e -> assertThat(e.type()).isEqualTo("/problems/url-not-found"));
+        }
+
+        @Test
+        void delete_throwsUrlNotFound_whenTheCodeIsUnknown() {
+            assertThatThrownBy(() -> service.delete("nosuchcode", OWNER))
                     .isInstanceOfSatisfying(
                             LinkException.class, e -> assertThat(e.type()).isEqualTo("/problems/url-not-found"));
         }

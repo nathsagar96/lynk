@@ -58,7 +58,7 @@ class UrlMappingRepositoryConcurrencyIT extends AbstractIntegrationTestBase {
      */
     @Test
     void incrementClickCount_losesNoUpdates_whenRacingConcurrentTransactions() throws Exception {
-        service.shorten(new ShortenUrlRequest(DESTINATION, ALIAS, null));
+        service.shorten(new ShortenUrlRequest(DESTINATION, ALIAS, null), "concurrency-owner");
         CyclicBarrier startLine = new CyclicBarrier(WORKERS);
         List<Throwable> failures = new CopyOnWriteArrayList<>();
 

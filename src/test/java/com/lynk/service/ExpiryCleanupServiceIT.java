@@ -19,7 +19,7 @@ class ExpiryCleanupServiceIT extends AbstractIntegrationTestBase {
     private ExpiryCleanupService cleanupService;
 
     private UrlMapping persist(String shortCode, Instant expiresAt) {
-        UrlMapping mapping = new UrlMapping(DESTINATION, shortCode, expiresAt);
+        UrlMapping mapping = new UrlMapping(DESTINATION, shortCode, "sweep-owner", expiresAt);
         return repository.saveAndFlush(mapping);
     }
 

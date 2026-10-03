@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 /**
@@ -46,20 +47,50 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
         ResponseEntity<Object> response = super.handleMethodArgumentNotValid(ex, headers, status, request);
 
-        ProblemDetail problem = (ProblemDetail) response.getBody();
-        problem.setType(URI.create("/problems/validation-failed"));
-        problem.setTitle("Validation failed");
-        problem.setInstance(instanceOf(request));
-
         List<Map<String, String>> errors = ex.getBindingResult().getFieldErrors().stream()
                 .map(error -> Map.of(
                         "field", error.getField(),
                         "message", error.getDefaultMessage() == null ? "is invalid" : error.getDefaultMessage(),
                         "rejectedValue", String.valueOf(error.getRejectedValue())))
                 .toList();
-        problem.setProperty("errors", errors);
 
-        return ResponseEntity.status(status).headers(headers).body(problem);
+        return ResponseEntity.status(status)
+                .headers(headers)
+                .body(validationProblem((ProblemDetail) response.getBody(), errors, request));
+    }
+
+    /**
+     * Bean validation on a query parameter raises a different exception from a bad request body, but
+     * it gets the same document. One {@code type} for validation is worth more than letting the
+     * shape of the request decide which problem type the client has to recognise.
+     */
+    @Override
+    protected ResponseEntity<Object> handleHandlerMethodValidationException(
+            @NonNull HandlerMethodValidationException ex,
+            @NonNull HttpHeaders headers,
+            @NonNull HttpStatusCode status,
+            @NonNull WebRequest request) {
+
+        List<Map<String, String>> errors = ex.getParameterValidationResults().stream()
+                .flatMap(result -> result.getResolvableErrors().stream()
+                        .map(error -> Map.of(
+                                "field", result.getMethodParameter().getParameterName(),
+                                "message", error.getDefaultMessage() == null ? "is invalid" : error.getDefaultMessage(),
+                                "rejectedValue", String.valueOf(result.getArgument()))))
+                .toList();
+
+        return ResponseEntity.status(status)
+                .headers(headers)
+                .body(validationProblem(ProblemDetail.forStatus(status), errors, request));
+    }
+
+    private ProblemDetail validationProblem(
+            ProblemDetail problem, List<Map<String, String>> errors, WebRequest request) {
+        problem.setType(URI.create("/problems/validation-failed"));
+        problem.setTitle("Validation failed");
+        problem.setInstance(instanceOf(request));
+        problem.setProperty("errors", errors);
+        return problem;
     }
 
     /**
