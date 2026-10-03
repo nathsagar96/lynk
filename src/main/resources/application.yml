@@ -20,6 +20,15 @@ spring:
     virtual:
       enabled: true
 
+  # Bearer tokens are minted by Keycloak and validated here against the realm's published keys. The
+  # /realms/<realm> form makes Spring discover the JWK set from the realm's OIDC metadata, and every
+  # token whose `iss` is not this exact URL is rejected.
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8081/realms/lynk}
+
 # The API is JSON; springdoc defaults to */* for what it produces.
 springdoc:
   default-produces-media-type: application/json

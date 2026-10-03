@@ -1,0 +1,39 @@
+{
+  "realm": "lynk",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "clients": [
+    {
+      "clientId": "lynk-cli",
+      "name": "Lynk CLI",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "fullScopeAllowed": false,
+      "redirectUris": ["http://localhost:8080/*"],
+      "webOrigins": ["*"]
+    }
+  ],
+  "users": [
+    {
+      "username": "lynk",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "lynk@example.com",
+      "firstName": "Lynk",
+      "lastName": "User",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "lynk",
+          "temporary": false
+        }
+      ]
+    }
+  ]
+}

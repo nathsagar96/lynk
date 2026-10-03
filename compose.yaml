@@ -14,5 +14,22 @@ services:
     volumes:
       - 'lynk-dev-db:/var/lib/postgresql'
 
+  # Reference identity provider for local runs. It imports the same realm the integration test uses,
+  # so ./mvnw spring-boot:run talks to the realm the tests prove. Mounted from src/test/resources
+  # because that is the only copy: the realm is a test/dev fixture, and Keycloak's --import-realm
+  # wants it on the container's import path.
+  keycloak:
+    image: 'quay.io/keycloak/keycloak:26.8'
+    command: [ 'start-dev', '--import-realm' ]
+    environment:
+      # Keycloak 26 bootstraps the master-realm admin from these, replacing KEYCLOAK_ADMIN*.
+      - 'KC_BOOTSTRAP_ADMIN_USERNAME=admin'
+      - 'KC_BOOTSTRAP_ADMIN_PASSWORD=admin'
+    ports:
+      # 8081 on the host: 8080 is the app. Matches the default lynk issuer-uri.
+      - '8081:8080'
+    volumes:
+      - './src/test/resources/keycloak/lynk-realm.json:/opt/keycloak/data/import/lynk-realm.json:ro'
+
 volumes:
   lynk-dev-db:

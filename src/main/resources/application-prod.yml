@@ -12,7 +12,15 @@ spring:
     compose:
       enabled: false
 
-# Nothing authenticates this service, so the generated contract is not served in production.
+  # No default: production must be told which realm mints its tokens, and the issuer has to be
+  # reachable from the app, since the JWK set is fetched from it.
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER_URI}
+
+# The generated contract is a development aid; production does not publish its API surface.
 springdoc:
   api-docs:
     enabled: false

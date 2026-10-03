@@ -2,6 +2,8 @@ package com.lynk.controller;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -14,6 +16,7 @@ import com.lynk.AbstractIntegrationTestBase;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -31,6 +34,7 @@ class UrlApiIT extends AbstractIntegrationTestBase {
 
     private ResultActions shortenWith(String json) throws Exception {
         return mockMvc.perform(post("/api/v1/url/shorten")
+                .with(jwt())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(json));
     }
@@ -128,7 +132,7 @@ class UrlApiIT extends AbstractIntegrationTestBase {
             mockMvc.perform(get("/count-alias")).andExpect(status().isFound());
             mockMvc.perform(get("/count-alias")).andExpect(status().isFound());
 
-            mockMvc.perform(get("/api/v1/url/stats/count-alias"))
+            mockMvc.perform(get("/api/v1/url/stats/count-alias").with(jwt()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.clickCount").value(2));
         }
@@ -161,7 +165,7 @@ class UrlApiIT extends AbstractIntegrationTestBase {
         void stats_returnsStoredMapping_whenCodeExists() throws Exception {
             shortenWithAlias("stats-api-alias");
 
-            mockMvc.perform(get("/api/v1/url/stats/stats-api-alias"))
+            mockMvc.perform(get("/api/v1/url/stats/stats-api-alias").with(jwt()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.originalUrl").value(DESTINATION))
                     .andExpect(jsonPath("$.shortUrl").value("http://localhost:8080/stats-api-alias"))
@@ -171,7 +175,88 @@ class UrlApiIT extends AbstractIntegrationTestBase {
 
         @Test
         void stats_returnsNotFoundProblem_whenCodeIsUnknown() throws Exception {
-            mockMvc.perform(get("/api/v1/url/stats/nosuchcode"))
+            mockMvc.perform(get("/api/v1/url/stats/nosuchcode").with(jwt()))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.type").value("/problems/url-not-found"));
+        }
+    }
+
+    @Nested
+    class ListLinks {
+
+        @Test
+        void links_returnsAPageOfTheCallersOwnLinks() throws Exception {
+            shortenWithAlias("listed-one");
+            shortenWithAlias("listed-two");
+
+            mockMvc.perform(get("/api/v1/url/links").with(jwt()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.totalElements").value(2))
+                    .andExpect(jsonPath("$.content.length()").value(2));
+        }
+
+        @Test
+        void links_honoursSizeAndReportsTheFullTotal() throws Exception {
+            shortenWithAlias("paged-one");
+            shortenWithAlias("paged-two");
+            shortenWithAlias("paged-three");
+
+            mockMvc.perform(get("/api/v1/url/links").param("size", "2").with(jwt()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content.length()").value(2))
+                    .andExpect(jsonPath("$.totalElements").value(3));
+        }
+
+        @Test
+        void links_isRejected_whenNoTokenIsSent() throws Exception {
+            mockMvc.perform(get("/api/v1/url/links"))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.type").value("/problems/unauthenticated"));
+        }
+
+        @ParameterizedTest(name = "{0} is rejected")
+        @CsvSource({"page, -1", "size, 0", "size, 101"})
+        void links_returnsValidationProblem_whenPagingIsOutOfRange(String param, String value) throws Exception {
+            mockMvc.perform(get("/api/v1/url/links").param(param, value).with(jwt()))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                    .andExpect(jsonPath("$.type").value("/problems/validation-failed"))
+                    .andExpect(jsonPath("$.errors[0].field").value(param));
+        }
+    }
+
+    @Nested
+    class DeleteLink {
+
+        @Test
+        void delete_returnsNoContent_andStopsTheLinkResolving() throws Exception {
+            shortenWithAlias("deletable-link");
+
+            mockMvc.perform(delete("/api/v1/url/links/deletable-link").with(jwt()))
+                    .andExpect(status().isNoContent())
+                    .andExpect(content().string(""));
+
+            mockMvc.perform(get("/api/v1/url/stats/deletable-link").with(jwt()))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.type").value("/problems/url-not-found"));
+
+            mockMvc.perform(get("/deletable-link"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.type").value("/problems/url-not-found"));
+        }
+
+        @Test
+        void delete_isRejected_whenNoTokenIsSent() throws Exception {
+            shortenWithAlias("protected-link");
+
+            mockMvc.perform(delete("/api/v1/url/links/protected-link"))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.type").value("/problems/unauthenticated"));
+        }
+
+        @Test
+        void delete_returnsNotFoundProblem_whenTheCodeIsUnknown() throws Exception {
+            mockMvc.perform(delete("/api/v1/url/links/nosuchcode").with(jwt()))
                     .andExpect(status().isNotFound())
                     .andExpect(jsonPath("$.type").value("/problems/url-not-found"));
         }

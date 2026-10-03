@@ -7,6 +7,8 @@ Built with Spring Boot 4.1, Java 25 and PostgreSQL. API only — there is no web
 ## Features
 
 - **Shorten** a long URL to a 7-character base-62 code
+- **Bearer-token security** backed by Keycloak, so writing and reading stats needs a token
+- **Per-link ownership**: a link's stats are visible only to the subject that registered it
 - **Custom aliases** for memorable links, with a uniqueness guarantee
 - **Expiration**: any link can be given a time-to-live, and expired links stop redirecting
 - **Click tracking** via an atomic counter, safe under concurrent redirects
@@ -31,26 +33,62 @@ images, or the containers. There is nothing to install but a JDK and Docker.
 $ ./mvnw spring-boot:run
 ```
 
-The first run takes a little longer while Maven resolves dependencies and the database image pulls.
-Once it is up:
+The first run takes a little longer while Maven resolves dependencies and pulls the database and
+Keycloak images. `spring-boot:run` starts both from `compose.yaml`; Keycloak listens on `8081` and
+imports the `lynk` realm.
+
+The write and stats endpoints need a bearer token, so ask Keycloak for one first. The realm ships a
+`lynk` / `lynk` user and a `lynk-cli` client for exactly this:
 
 ```console
+$ TOKEN=$(curl -s -X POST http://localhost:8081/realms/lynk/protocol/openid-connect/token \
+    -d grant_type=password -d client_id=lynk-cli -d username=lynk -d password=lynk \
+    | jq -r .access_token)
 $ curl -s -X POST http://localhost:8080/api/v1/url/shorten \
-    -H 'Content-Type: application/json' \
+    -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
     -d '{"url":"https://spring.io/guides","customAlias":"readme-demo"}'
-$ curl -sI http://localhost:8080/readme-demo
+$ curl -sI http://localhost:8080/readme-demo   # the redirect itself stays public
 ```
 
-`Ctrl-C` stops the app and the database it started.
+`Ctrl-C` stops the app and the containers it started.
 
 ## API
 
-| Method | Path                       | Success | Notes                                     |
-|--------|----------------------------|---------|-------------------------------------------|
-| `POST` | `/api/v1/url/shorten`      | `201`   | `{url, customAlias?, hoursToExpire?}`     |
-| `GET`  | `/{shortCode}`             | `302`   | redirects and increments the click count  |
-| `GET`  | `/api/v1/url/stats/{code}` | `200`   | click stats, including for expired links  |
-| `GET`  | `/actuator/health`         | `200`   | health, including the database connection |
+| Method | Path                       | Success | Auth   | Notes                                     |
+|--------|----------------------------|---------|--------|-------------------------------------------|
+| `POST` | `/api/v1/url/shorten`      | `201`   | Bearer | `{url, customAlias?, hoursToExpire?}`     |
+| `GET`  | `/{shortCode}`             | `302`   | —      | redirects and increments the click count  |
+| `GET`  | `/api/v1/url/stats/{code}` | `200`   | Bearer | click stats, including for expired links  |
+| `GET`  | `/api/v1/url/links`        | `200`   | Bearer | your links, paged by `page` and `size`    |
+| `DELETE` | `/api/v1/url/links/{code}` | `204`  | Bearer | removes one of your links                 |
+| `GET`  | `/actuator/health`         | `200`   | —      | health, including the database connection |
+
+### Authentication
+
+The API is a Keycloak resource server: it never sees a password and never starts a login, it only
+validates the bearer token Keycloak issues. `POST /api/v1/url/shorten` and
+`GET /api/v1/url/stats/{code}` require one; the redirect and the health endpoint stay open, so a
+short link keeps working for whoever follows it.
+
+Point the service at a realm with `KEYCLOAK_ISSUER_URI` (default `http://localhost:8081/realms/lynk`,
+the realm `compose.yaml` imports). The issuer is read at startup, so Keycloak has to be reachable
+before the app — which is why `spring-boot:run` starts it. A missing or invalid token is a `401` with
+`type` `/problems/unauthenticated`, shaped like every other error.
+
+### Ownership
+
+A link belongs to the subject of the token that registered it. `GET /api/v1/url/stats/{code}`,
+`GET /api/v1/url/links` and `DELETE /api/v1/url/links/{code}` all answer for that subject only —
+everybody else gets the same `404` as an unknown code, so stats never confirm that somebody else's
+link exists.
+
+Short codes stay **globally** unique rather than being namespaced per user, because the redirect is
+public and carries no user: `GET /{shortCode}` has to resolve a code to one destination on its own. So
+a second person asking for a code you already hold still gets the `409`. Following a short link is
+never scoped — anyone with the link can follow it, and the click is counted the same.
+
+Links registered before ownership existed (the `V2` migration left them rather than deleting them)
+keep redirecting, but their stats are unreadable to everyone.
 
 ### Interactive documentation
 
@@ -70,6 +108,8 @@ things are worth knowing about it:
   `/{shortCode}` that reads as "every other path".
 - The problem-document responses are documented without example bodies. `type` is the stable handle
   to branch on, so the description names the possible types instead of showing a sample.
+- The protected operations carry a `bearerAuth` requirement, so Swagger UI shows an **Authorize**
+  button; paste a Keycloak access token there to call them.
 
 Both endpoints are disabled under the `prod` profile — see [Configuration](#configuration).
 
@@ -136,7 +176,48 @@ $ curl http://localhost:8080/api/v1/url/stats/readme-demo
 ```
 
 Stats keep working after a link expires, and until the nightly sweep deletes it. `expiresAt` is
-`null` for a link that never expires.
+`null` for a link that never expires. Both this endpoint and the one that created the link are scoped
+to the link's owner — see [Ownership](#ownership).
+
+### List your links
+
+```console
+$ curl -s 'http://localhost:8080/api/v1/url/links?page=0&size=20' \
+    -H "Authorization: Bearer $TOKEN"
+{
+  "content": [
+    {
+      "originalUrl": "https://spring.io/guides",
+      "shortUrl":    "http://localhost:8080/readme-demo",
+      "createdAt":   "2026-09-28T05:09:39.484023Z",
+      "expiresAt":   null,
+      "clickCount":  12
+    }
+  ],
+  "totalElements": 1
+}
+```
+
+Newest first, and only your own links — the owner is part of the query, not a filter applied after
+it, so another user's links can never fill a page. `page` is zero-based and `size` is capped at 100;
+`totalElements` is how many there are to walk. A negative `page`, or a `size` outside `1..100`, is a
+`400` `/problems/validation-failed` naming the offending field in `errors`.
+
+Each entry in `content` is exactly what `GET /api/v1/url/stats/{code}` returns for that link, so the
+listing is the cheap way to walk everything you own.
+
+### Delete a link
+
+```console
+$ curl -s -o /dev/null -w '%{http_code}\n' -X DELETE \
+    http://localhost:8080/api/v1/url/links/readme-demo \
+    -H "Authorization: Bearer $TOKEN"
+204
+```
+
+Immediate and owner-scoped. The short code stops resolving — following it is a `404` from then on —
+and the click count goes with it. Somebody else's link is a `404`, not a `403`, exactly as with the
+stats endpoint.
 
 ### Errors
 
@@ -158,7 +239,8 @@ $ curl http://localhost:8080/zzzzzzz
 | `400`  | `/problems/validation-failed` | bean validation failed; see `errors[]`  |
 | `400`  | `/problems/invalid-url`       | URL or alias unusable                   |
 | `400`  | `/problems/reserved-alias`    | alias would shadow an application route |
-| `404`  | `/problems/url-not-found`     | no such short code                      |
+| `401`  | `/problems/unauthenticated`   | no valid bearer token supplied          |
+| `404`  | `/problems/url-not-found`     | no such short code, or one you do not own |
 | `409`  | `/problems/alias-conflict`    | custom alias already taken              |
 | `410`  | `/problems/url-expired`       | link existed but has expired            |
 
@@ -194,17 +276,23 @@ A validation failure adds a per-field `errors` array, since RFC 9457 has no stan
 ## Running locally
 
 Requires Docker. No local PostgreSQL installation is needed — the `spring-boot-docker-compose`
-module finds `compose.yaml`, starts the database, wires the datasource, and stops the database
-again on shutdown.
+module finds `compose.yaml`, starts the database and a Keycloak carrying the `lynk` realm, wires the
+datasource, and stops both again on shutdown.
 
 ```console
 ./mvnw spring-boot:run
 ```
 
-The first run takes a little longer while Maven resolves dependencies and the database image pulls.
-The dev database publishes `5432` on a random host port so it cannot clash with a PostgreSQL you
-already run; its data lives in the `lynk-dev-db` volume and survives restarts. Discard it with
+The first run takes a little longer while Maven resolves dependencies and the database and Keycloak
+images pull. The dev database publishes `5432` on a random host port so it cannot clash with a
+PostgreSQL you already run; its data lives in the `lynk-dev-db` volume and survives restarts.
+Keycloak publishes `8081` (the app keeps `8080`). Discard both with
 `docker compose -f compose.yaml down -v`.
+
+Keycloak takes some seconds longer than PostgreSQL to become usable, and the app discovers the
+issuer's keys at startup — so on a cold first run it can fail before Keycloak is answering. Start
+`spring-boot:run` again once `curl -s http://localhost:8081/realms/lynk` responds, and after that the
+container is already warm.
 
 Tests are split into two suites, selected by JUnit tag rather than by class name:
 
@@ -266,6 +354,7 @@ docker compose -f compose.prod.yaml down -v
 | `POSTGRES_DB` / `POSTGRES_USER` | `lynk`                  | database name and user            |
 | `POSTGRES_PASSWORD`             | — (required)            | database password                 |
 | `APP_PORT`                      | `8080`                  | host port mapped to the container |
+| `KEYCLOAK_ISSUER_URI`           | (dev) `:8081/realms/lynk` | realm whose tokens the API accepts |
 
 Non-secret settings live under `lynk.*` in `application.yml`:
 
@@ -280,22 +369,23 @@ Non-secret settings live under `lynk.*` in `application.yml`:
 The `prod` profile additionally sets `spring.docker.compose.enabled=false` and
 `server.shutdown=graceful`, so the container never shells out to Docker and in-flight redirects
 finish on shutdown. It also sets `springdoc.api-docs.enabled=false`, which takes the Swagger UI
-down with it: nothing authenticates this service, so the generated contract is a development aid
-rather than something to publish.
+down with it: production does not publish its API surface. `KEYCLOAK_ISSUER_URI` has no default
+there, so the stack refuses to start without a realm to validate tokens against.
 
 ## Project layout
 
 ```
 src/main/java/com/lynk/
-  config/       @ConfigurationProperties record, @EnableScheduling
+  config/       @ConfigurationProperties record, the security filter chain, @EnableScheduling
   controller/   the two HTTP entry points: /api/v1/url/* and /{shortCode} (@Hidden from the OpenAPI doc)
   domain/       the UrlMapping entity
   dto/          request and response records — the entity never leaves the service
-  error/        exceptions plus the single @RestControllerAdvice that maps them to problem details
+  error/        exceptions, the single @RestControllerAdvice, and the 401 entry point the filter chain needs
   repository/   Spring Data JPA interface, including the atomic click increment
   service/      shortening, resolution, validation, code generation, expiry sweep
 src/main/resources/db/migration/   Flyway; the schema's only source of truth
 src/test/java/com/lynk/            *Test = @Tag("unit"), *IT = @Tag("integration") via Testcontainers
+src/test/resources/keycloak/       the lynk realm, imported by compose.yaml and the integration test
 ```
 
 ## Design notes
@@ -346,14 +436,41 @@ translated into the same 409.
 **Reserved words are compared case-insensitively**, because the redirect pattern is
 case-sensitive-per-character and `/ERROR` would shadow the error page just as `/error` does.
 
+**The API is a resource server, not a client.** Keycloak mints the token; this service only
+validates it against the realm's published keys, so no password ever reaches the app. Everything
+under `/api/**` needs a token and everything else is public on purpose — the redirect must answer
+strangers, and leaving unmatched paths public keeps a bad path a `404` rather than a confusing
+`403`. The filter chain runs before MVC, so the `401` cannot go through `ApiExceptionHandler`; a
+small `AuthenticationEntryPoint` writes the same problem document the rest of the API uses.
+
+**A link is owned by the token's subject, and only stats are scoped by it.** The redirect is a route
+strangers follow, so it stays public and short codes stay globally unique — ownership decides who may
+*read* a link, not who may claim a code. Another owner's link answers the same `404` as an unknown
+code rather than a `403`, because a `403` would confirm the code is real. The subject is read in the
+controller, where the untrusted claim enters, and rejected there if absent: `sub` is optional in the
+general JWT access-token profile, and registering a link under a subject-less token would create one
+nobody — including its creator — could ever read back.
+
+**`owner` is nullable on purpose.** `V2` could not make it `NOT NULL` without dropping links
+that already existed, so pre-ownership rows keep a NULL owner, which matches no subject and therefore
+reads as missing. That is the ceiling of the migration; the way out is to backfill or purge those
+rows and then tighten the column.
+
+**The listing sorts by `created_at` with the `id` as a tiebreaker.** Two links registered in the same
+transaction share a timestamp, so `created_at` alone does not order a page deterministically: a page
+boundary can fall between two indistinguishable rows and one appears on two pages or on none. The
+index on `owner` serves both the listing and the owner-scoped stats read.
+
 ## Known limitations
 
 These are deliberate scope decisions, not oversights:
 
-- **No authentication.** Anyone who knows a short code can read its click count. Adding accounts
-  would mean owning the link namespace per user.
-- **No rate limiting** on `POST /api/v1/url/shorten`, so the endpoint is open to abuse by anyone
-  who can reach it.
+- **No bulk operations.** Listing is paged and deletion takes one code, so clearing a long history
+  means walking the pages and deleting link by link.
+- **No roles or scopes.** Any valid token from the realm can call every protected endpoint;
+  authorization stops at "is authenticated" plus link ownership.
+- **No rate limiting** on `POST /api/v1/url/shorten`, so the holder of a valid token can create
+  links without bound.
 - **Click totals only.** No per-request analytics, so there is no referrer, user-agent or
   timestamped click history.
 - **The cleanup schedule is fixed at boot.** `cleanup.cron` is read when the job is registered, so

@@ -41,6 +41,16 @@ public class UrlMapping {
     private Instant createdAt;
 
     /**
+     * The token subject that registered this link, and the only one whose stats call will match it.
+     * <p>
+     * Null only for rows that predate ownership, which
+     * {@code V2__add_owner_to_url_mapping.sql} left unowned rather than dropping. Every row written
+     * now carries one, because the service refuses to register a link it cannot attribute.
+     */
+    @Column(name = "owner", length = 255)
+    private String owner;
+
+    /**
      * Null means the link never expires.
      */
     @Column(name = "expires_at")
@@ -50,12 +60,13 @@ public class UrlMapping {
     private long clickCount;
 
     /**
-     * Creates a not-yet-persisted mapping. {@code createdAt} is stamped on persist so callers
-     * never have to supply it.
+     * Creates a not-yet-persisted mapping owned by {@code owner}. {@code createdAt} is
+     * stamped on persist so callers never have to supply it.
      */
-    public UrlMapping(String originalUrl, String shortCode, Instant expiresAt) {
+    public UrlMapping(String originalUrl, String shortCode, String owner, Instant expiresAt) {
         this.originalUrl = originalUrl;
         this.shortCode = shortCode;
+        this.owner = owner;
         this.expiresAt = expiresAt;
     }
 

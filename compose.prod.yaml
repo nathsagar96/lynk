@@ -36,6 +36,9 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
       # Must be the address callers actually use, since it is what gets baked into shortUrl.
       APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
+      # The realm that mints bearer tokens for this deployment. Not bundled here: production points
+      # at a managed Keycloak, and the issuer must be reachable from the app container.
+      KEYCLOAK_ISSUER_URI: ${KEYCLOAK_ISSUER_URI:?set KEYCLOAK_ISSUER_URI}
     ports:
       - '${APP_PORT:-8080}:8080'
     restart: unless-stopped

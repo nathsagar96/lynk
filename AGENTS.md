@@ -38,6 +38,11 @@ line 80% / branch 70% (JaCoCo `check`); the merged report lands in `target/site/
   `clearAutomatically` set) — do not "simplify" to load-mutate-save; that breaks under
   concurrent redirects.
 - Timestamps are `Instant` → `timestamptz`. Don't introduce `LocalDateTime`.
+- `url_mapping.owner` is **nullable on purpose**: `V2` could not set `NOT NULL` without
+  deleting links that already existed. Those rows match no owner, so their stats read as a 404.
+  Don't tighten the column without backfilling or purging them first.
+- The paged listing sorts by `created_at` then `id`. The `id` tiebreaker is load-bearing — two links
+  registered in one transaction share a timestamp — so don't drop it.
 
 ## HTTP/routing gotchas
 
@@ -48,7 +53,12 @@ line 80% / branch 70% (JaCoCo `check`); the merged report lands in `target/site/
 - Redirects must stay `302` with `Cache-Control: no-store` — `301` or a missing header
   silently corrupts click counts.
 - All errors go through the single `@RestControllerAdvice` as RFC 9457 problem
-  documents; branch clients on `type`/`status`, never `detail`.
+  documents, **except** `401`s, which the security filter chain answers before MVC reaches the
+  advice — see `ProblemAuthenticationEntryPoint`; branch clients on `type`/`status`, never `detail`.
+- Bean validation on a **query parameter** raises `HandlerMethodValidationException`, which
+  `ApiExceptionHandler` reshapes into the same `/problems/validation-failed` document a bad body gets,
+  so clients have one type for validation. Spring 7 named the hook
+  `handleHandlerMethodValidationException` — not `handleHandlerMethodValidation`.
 - `RedirectController` is `@Hidden` — the redirect route is for browsers following a
   link, not an operation a client calls, and in the OpenAPI doc it would read as a
   catch-all `/{shortCode}`. Don't document it or remove the annotation.
@@ -56,12 +66,47 @@ line 80% / branch 70% (JaCoCo `check`); the merged report lands in `target/site/
   on an operation or a response. Problem-document responses carry **no** example at all;
   name the possible `type` values in the `@ApiResponse` description instead.
 
+## Security / auth gotchas
+
+- Boot 4 starter names are `spring-boot-starter-security-oauth2-resource-server` (runtime)
+  and `spring-boot-starter-security-oauth2-resource-server-test` (test; brings
+  `spring-security-test` for the `jwt()` post-processor). The pre-4 names are not used.
+- The service is a Keycloak **resource server** — it only validates tokens. `KEYCLOAK_ISSUER_URI`
+  (default: the realm `compose.yaml` imports) is read at **startup**, when the JWK set is
+  discovered, so Keycloak must be reachable before the app boots. That is why `compose.yaml` starts
+  Keycloak alongside the database.
+- `401`s are produced by the filter chain, upstream of MVC, so they never reach
+  `ApiExceptionHandler`. `ProblemAuthenticationEntryPoint` writes the equivalent problem document;
+  keep it in step if the error shape changes.
+- Rules in `SecurityConfig`: `/api/**` needs a token, everything else is `permitAll()`. The redirect
+  and health must stay public, and keeping unmatched paths permitted is what keeps a bad path a
+  `404` rather than a `403`.
+- Links are owned by the token's `sub`. `UrlController.ownerOf` is where that claim is read and
+  where a token without one is rejected — a link registered under no subject could never be read
+  back, not even by its creator. Stats are scoped by owner, and a link you do not own is a **404,
+  not 403**, because a 403 would confirm the code exists. `resolveAndCountClick` stays owner-agnostic
+  (the redirect is public) and short codes stay globally unique: a public redirect cannot resolve a
+  per-user namespace.
+- Every integration suite except `KeycloakAuthenticationIT` gets a mocked `JwtDecoder` from
+  `AbstractIntegrationTestBase`, so they boot without a live Keycloak; that one class wires a real
+  container's issuer instead and must not extend the base.
+
+## Boot 4 / Jackson
+
+- The JSON mapper is **Jackson 3** (`tools.jackson.databind`). There is no
+  `com.fasterxml.jackson.databind.ObjectMapper` bean — inject `tools.jackson.databind.ObjectMapper`
+  (the auto-configured bean is a `tools.jackson.databind.json.JsonMapper`). Jackson 2 is present
+  only transitively, for a couple of test libraries.
+
 ## Running
 
-- Dev: `./mvnw spring-boot:run` — spring-boot-docker-compose starts PostgreSQL, maps it
-  to a random host port, and tears it down on exit. `POSTGRES_PASSWORD` has no default
-  in `compose.prod.yaml`; the prod stack refuses to start without it and `APP_BASE_URL`,
-  and `APP_BASE_URL` is baked into every returned `shortUrl`.
+- Dev: `./mvnw spring-boot:run` — spring-boot-docker-compose starts PostgreSQL (random host
+  port) and Keycloak (host `8081`, realm `lynk`), and tears them down on exit. Keycloak must be up
+  before the app, since the issuer is discovered at startup — which is why it is in `compose.yaml`.
+  `POSTGRES_PASSWORD` has no default in `compose.prod.yaml`; the prod stack refuses to start without
+  it, `APP_BASE_URL`, and `KEYCLOAK_ISSUER_URI`, and `APP_BASE_URL` is baked into every returned
+  `shortUrl`.
 - `prod` profile disables docker-compose, enables graceful shutdown and sets
   `springdoc.api-docs.enabled=false` (which also takes the Swagger UI down, since both come from the
-  same autoconfiguration); don't enable compose support there.
+  same autoconfiguration); don't enable compose support there. It has no default
+  `KEYCLOAK_ISSUER_URI`, so prod points at a real realm rather than the dev container.

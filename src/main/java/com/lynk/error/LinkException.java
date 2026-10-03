@@ -65,4 +65,18 @@ public class LinkException extends RuntimeException {
     public static LinkException invalid(String detail) {
         return new LinkException(HttpStatus.BAD_REQUEST, "Invalid request", "/problems/invalid-url", detail);
     }
+
+    /**
+     * A token that validated but carries no subject, so the caller cannot be attributed to an owner.
+     * <p>
+     * Shares the {@code /problems/unauthenticated} type with the entry point on purpose: both mean
+     * "we cannot tell who you are", and a client should not have to branch on which layer noticed.
+     */
+    public static LinkException tokenWithoutSubject() {
+        return new LinkException(
+                HttpStatus.UNAUTHORIZED,
+                "Unauthenticated",
+                "/problems/unauthenticated",
+                "The access token carries no subject, so the request cannot be attributed to a user.");
+    }
 }
