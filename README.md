@@ -340,6 +340,44 @@ These are deliberate scope decisions, not oversights:
 ./mvnw spring-boot:run  # run against compose.yaml
 ```
 
+### Committing
+
+`spotless:apply` is the mandatory first step: Spotless runs in the `validate` phase, so a formatting
+violation fails `./mvnw test` and blocks the commit anyway. Run it before staging rather than
+amending afterwards.
+
+```console
+./mvnw spotless:apply
+./mvnw test             # ~1s, unit tests only; the full verify needs Docker
+git add -A
+git commit -m "Describe the change and, where it is not obvious, why"
+git push
+```
+
+Commit messages describe the *reason* for a change, not just its mechanics — the design notes above
+already explain how the system works, so a message that only repeats the diff is worth nothing six
+months from now.
+
+### Branching
+
+`main` is the default branch and is expected to stay green. Branch off it for anything non-trivial:
+
+```console
+git switch -c fix/alias-race-on-409
+# ...work, then: ./mvnw spotless:apply && ./mvnw test
+git switch main && git merge --no-ff fix/alias-race-on-409
+git branch -d fix/alias-race-on-409
+```
+
+Merges back to `main` use `--no-ff`, so the branch is visible in the history and the reason for the
+change survives in its commits. CI runs `./mvnw -B verify` on Java 25, which includes the
+Testcontainers integration tests — the same suite `./mvnw verify` runs locally, given a running
+Docker.
+
+Two repository details worth knowing before your first commit: `.gitattributes` normalises line
+endings, so `mvnw.cmd` is stored with `LF` and checked out as `CRLF` on Windows (a `LF will be
+replaced by CRLF` warning from `git add` is expected, not a problem), and `target/` is ignored.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
