@@ -10,10 +10,12 @@ get wrong.
 ./mvnw spotless:apply   # REQUIRED before committing; Spotless runs in `validate`
                         # and a format violation fails ./mvnw test
 ./mvnw test             # unit tests only, no Docker needed (~1s)
-./mvnw verify           # adds integration tests; requires Docker (Testcontainers)
+./mvnw verify           # adds integration tests + JaCoCo coverage gate; requires Docker
 ```
 
-CI runs `./mvnw -B verify` on Java 25 (Temurin).
+CI runs `./mvnw -B verify` on Java 25 (Temurin). `verify` also fails if bundle coverage drops below
+line 80% / branch 70% (JaCoCo `check`); the merged report lands in `target/site/jacoco/`.
+`-Djacoco.skip=true` bypasses it locally.
 
 ## Test layout quirks
 
