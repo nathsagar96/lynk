@@ -1,0 +1,44 @@
+# Standalone production stack: the built application image plus its database.
+#
+#   docker compose -f compose.prod.yaml up --build
+#
+# This is separate from compose.yaml, which only defines the dev database and is started
+# automatically by spring-boot-docker-compose for local runs.
+services:
+
+  db:
+    image: 'postgres:18-alpine'
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-lynk}
+      POSTGRES_USER: ${POSTGRES_USER:-lynk}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - 'lynk-prod-db:/var/lib/postgresql'
+    healthcheck:
+      test: [ 'CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-lynk} -d ${POSTGRES_DB:-lynk}' ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-lynk}
+      DB_USERNAME: ${POSTGRES_USER:-lynk}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      # Must be the address callers actually use, since it is what gets baked into shortUrl.
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:8080}
+    ports:
+      - '${APP_PORT:-8080}:8080'
+    restart: unless-stopped
+
+volumes:
+  lynk-prod-db:

@@ -1,0 +1,18 @@
+# Local development database. spring-boot-docker-compose finds this file, starts the service and
+# wires the datasource automatically, so no datasource properties are needed for local runs.
+#
+# Test runs are unaffected: spring.docker.compose.skip.in-tests defaults to true.
+services:
+  postgres:
+    image: 'postgres:18-alpine'
+    environment:
+      - 'POSTGRES_DB=lynk'
+      - 'POSTGRES_USER=lynk'
+      - 'POSTGRES_PASSWORD=lynk'
+    ports:
+      - '5432'
+    volumes:
+      - 'lynk-dev-db:/var/lib/postgresql'
+
+volumes:
+  lynk-dev-db:

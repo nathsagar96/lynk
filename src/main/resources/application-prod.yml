@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+
+  # The compose dependency is for local development only; in production it is pointed at a real
+  # database and must never cause the app to shell out to Docker.
+  docker:
+    compose:
+      enabled: false
+
+server:
+  shutdown: graceful

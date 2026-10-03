@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: lynk
+
+  jpa:
+    # Flyway owns the schema; Hibernate only verifies the entities agree with it.
+    hibernate:
+      ddl-auto: validate
+    # No view layer, so holding a persistence context open for the whole request buys nothing and
+    # keeps a database connection checked out while the response is written.
+    open-in-view: false
+
+  mvc:
+    problemdetails:
+      enabled: true
+
+  # Redirects are I/O bound: one indexed read and one atomic update. Virtual threads suit that
+  # far better than pooling platform threads.
+  threads:
+    virtual:
+      enabled: true
+
+lynk:
+  # Absolute base used to build the shortUrl returned to callers. Must match how the service is
+  # reached from outside, so it is an environment variable rather than a hardcoded default.
+  base-url: ${APP_BASE_URL:http://localhost:8080}
+  code:
+    length: 7
+    max-attempts: 5
+    max-url-length: 2048
+  cleanup:
+    cron: "0 0 1 * * ?"
+  # Aliases that would shadow a root-level route. The redirect mapping is constrained to
+  # [A-Za-z0-9_-]{3,32}, and "error" falls inside that, so it has to be reserved explicitly.
+  reserved-words:
+    - error
+    - api
+    - actuator
+    - health
