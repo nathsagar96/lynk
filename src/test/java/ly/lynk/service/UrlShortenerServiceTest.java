@@ -18,6 +18,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 import ly.lynk.config.AppProperties;
+import ly.lynk.dto.CachedUrlMapping;
 import ly.lynk.dto.QrCodePayload;
 import ly.lynk.dto.ShortenUrlRequest;
 import ly.lynk.dto.ShortenUrlResponse;
@@ -64,14 +65,23 @@ class UrlShortenerServiceTest {
     @Mock
     private QrCodeService qrCodeService;
 
+    @Mock
+    private UrlMappingCacheService cacheService;
+
     private UrlShortenerService service;
     private AppProperties properties;
 
     @BeforeEach
     void setUp() {
-        properties = new AppProperties(BASE_URL, 7, 3, Set.of("api", "actuator"), null);
+        properties = new AppProperties(BASE_URL, 7, 3, Set.of("api", "actuator"), null, null);
         service = new UrlShortenerService(
-                repository, writer, aliasGenerator, qrCodeService, properties, Clock.fixed(NOW, ZoneOffset.UTC));
+                repository,
+                writer,
+                aliasGenerator,
+                qrCodeService,
+                cacheService,
+                properties,
+                Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     private UrlShortenerService serviceForBaseUrl(String baseUrl) {
@@ -80,7 +90,8 @@ class UrlShortenerServiceTest {
                 writer,
                 aliasGenerator,
                 qrCodeService,
-                new AppProperties(baseUrl, 7, 3, Set.of("api", "actuator"), null),
+                cacheService,
+                new AppProperties(baseUrl, 7, 3, Set.of("api", "actuator"), null, null),
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
@@ -92,12 +103,26 @@ class UrlShortenerServiceTest {
         return new UrlMapping(originalUrl, alias, NOW, expiresAt, ownerId);
     }
 
+    private CachedUrlMapping cachedMapping(String alias, String originalUrl, Instant expiresAt) {
+        return new CachedUrlMapping(alias, originalUrl, NOW, expiresAt, null);
+    }
+
+    private CachedUrlMapping cachedOwnedMapping(String alias, String originalUrl, Instant expiresAt, String ownerId) {
+        return new CachedUrlMapping(alias, originalUrl, NOW, expiresAt, ownerId);
+    }
+
     @Test
     @DisplayName("the short URL is built from the configured base URL")
     void buildsShortUrlFromConfiguredBaseUrl() {
-        properties = new AppProperties("https://lynk.dev", 7, 3, Set.of("api", "actuator"), null);
+        properties = new AppProperties("https://lynk.dev", 7, 3, Set.of("api", "actuator"), null, null);
         service = new UrlShortenerService(
-                repository, writer, aliasGenerator, qrCodeService, properties, Clock.fixed(NOW, ZoneOffset.UTC));
+                repository,
+                writer,
+                aliasGenerator,
+                qrCodeService,
+                cacheService,
+                properties,
+                Clock.fixed(NOW, ZoneOffset.UTC));
         when(writer.save(any(UrlMapping.class))).thenAnswer(inv -> inv.getArgument(0));
 
         ShortenUrlResponse response =
@@ -109,9 +134,15 @@ class UrlShortenerServiceTest {
     @Test
     @DisplayName("a trailing slash on the base URL does not produce a double slash")
     void normalizesTrailingSlashOnBaseUrl() {
-        properties = new AppProperties("https://lynk.dev/", 7, 3, Set.of("api", "actuator"), null);
+        properties = new AppProperties("https://lynk.dev/", 7, 3, Set.of("api", "actuator"), null, null);
         service = new UrlShortenerService(
-                repository, writer, aliasGenerator, qrCodeService, properties, Clock.fixed(NOW, ZoneOffset.UTC));
+                repository,
+                writer,
+                aliasGenerator,
+                qrCodeService,
+                cacheService,
+                properties,
+                Clock.fixed(NOW, ZoneOffset.UTC));
         when(writer.save(any(UrlMapping.class))).thenAnswer(inv -> inv.getArgument(0));
 
         ShortenUrlResponse response =
@@ -297,7 +328,7 @@ class UrlShortenerServiceTest {
     @Test
     @DisplayName("GET resolution increments the click count and returns the target URL")
     void resolvesAndTracksClick() {
-        when(repository.findByAlias("spring")).thenReturn(Optional.of(mapping("spring", "https://spring.io", null)));
+        when(cacheService.get("spring")).thenReturn(cachedMapping("spring", "https://spring.io", null));
 
         String target = service.resolveAndTrack("spring", null, true);
 
@@ -308,7 +339,7 @@ class UrlShortenerServiceTest {
     @Test
     @DisplayName("HEAD resolution does not increment the click count")
     void resolvesWithoutTrackingClick() {
-        when(repository.findByAlias("spring")).thenReturn(Optional.of(mapping("spring", "https://spring.io", null)));
+        when(cacheService.get("spring")).thenReturn(cachedMapping("spring", "https://spring.io", null));
 
         String target = service.resolveAndTrack("spring", null, false);
 
@@ -319,7 +350,7 @@ class UrlShortenerServiceTest {
     @Test
     @DisplayName("incoming query parameters are forwarded to the target URL")
     void forwardsQueryParameters() {
-        when(repository.findByAlias("spring")).thenReturn(Optional.of(mapping("spring", "https://spring.io", null)));
+        when(cacheService.get("spring")).thenReturn(cachedMapping("spring", "https://spring.io", null));
 
         String target = service.resolveAndTrack("spring", "utm_source=twitter", true);
 
@@ -329,8 +360,7 @@ class UrlShortenerServiceTest {
     @Test
     @DisplayName("incoming query parameters are merged with the target's existing query")
     void mergesQueryParameters() {
-        when(repository.findByAlias("spring"))
-                .thenReturn(Optional.of(mapping("spring", "https://spring.io/docs?lang=en", null)));
+        when(cacheService.get("spring")).thenReturn(cachedMapping("spring", "https://spring.io/docs?lang=en", null));
 
         String target = service.resolveAndTrack("spring", "utm_source=twitter", true);
 
@@ -340,8 +370,8 @@ class UrlShortenerServiceTest {
     @Test
     @DisplayName("query parameter encoding is preserved without double encoding")
     void preservesQueryEncoding() {
-        when(repository.findByAlias("spring"))
-                .thenReturn(Optional.of(mapping("spring", "https://spring.io/docs?lang=en%20US", null)));
+        when(cacheService.get("spring"))
+                .thenReturn(cachedMapping("spring", "https://spring.io/docs?lang=en%20US", null));
 
         String target = service.resolveAndTrack("spring", "q=a%20b", true);
 
@@ -351,8 +381,7 @@ class UrlShortenerServiceTest {
     @Test
     @DisplayName("a malformed percent escape in the incoming query is forwarded, not rejected")
     void forwardsMalformedPercentQuery() {
-        when(repository.findByAlias("spring"))
-                .thenReturn(Optional.of(mapping("spring", "https://spring.io/docs?lang=en", null)));
+        when(cacheService.get("spring")).thenReturn(cachedMapping("spring", "https://spring.io/docs?lang=en", null));
 
         String target = service.resolveAndTrack("spring", "discount=50%", true);
 
@@ -362,8 +391,7 @@ class UrlShortenerServiceTest {
     @Test
     @DisplayName("an incoming query is inserted before the target's fragment")
     void keepsFragmentLast() {
-        when(repository.findByAlias("spring"))
-                .thenReturn(Optional.of(mapping("spring", "https://spring.io/docs#intro", null)));
+        when(cacheService.get("spring")).thenReturn(cachedMapping("spring", "https://spring.io/docs#intro", null));
 
         String target = service.resolveAndTrack("spring", "utm_source=twitter", true);
 
@@ -373,7 +401,7 @@ class UrlShortenerServiceTest {
     @Test
     @DisplayName("an unknown alias is reported as not found")
     void rejectsUnknownAlias() {
-        when(repository.findByAlias("missing")).thenReturn(Optional.empty());
+        when(cacheService.get("missing")).thenThrow(new AliasNotFoundException("missing"));
 
         assertThatThrownBy(() -> service.resolveAndTrack("missing", null, true))
                 .isInstanceOf(AliasNotFoundException.class);
@@ -383,7 +411,7 @@ class UrlShortenerServiceTest {
     @DisplayName("an expired alias cannot be resolved")
     void rejectsExpiredAlias() {
         Instant past = NOW.minusSeconds(60);
-        when(repository.findByAlias("old")).thenReturn(Optional.of(mapping("old", "https://spring.io", past)));
+        when(cacheService.get("old")).thenReturn(cachedMapping("old", "https://spring.io", past));
 
         assertThatThrownBy(() -> service.resolveAndTrack("old", null, true)).isInstanceOf(AliasExpiredException.class);
         verify(repository, never()).incrementClickCount(anyString());
@@ -393,7 +421,7 @@ class UrlShortenerServiceTest {
     @DisplayName("an unexpired alias can be resolved normally")
     void resolvesUnexpiredAlias() {
         Instant future = NOW.plusSeconds(3600);
-        when(repository.findByAlias("active")).thenReturn(Optional.of(mapping("active", "https://spring.io", future)));
+        when(cacheService.get("active")).thenReturn(cachedMapping("active", "https://spring.io", future));
 
         String target = service.resolveAndTrack("active", null, true);
 
@@ -405,7 +433,7 @@ class UrlShortenerServiceTest {
     @DisplayName("details remain accessible for an expired alias")
     void returnsDetailsForExpiredAlias() {
         Instant past = NOW.minusSeconds(60);
-        when(repository.findByAlias("old")).thenReturn(Optional.of(mapping("old", "https://spring.io", past)));
+        when(cacheService.get("old")).thenReturn(cachedMapping("old", "https://spring.io", past));
 
         ShortenUrlResponse response = service.getUrlDetails("old");
 
@@ -416,7 +444,7 @@ class UrlShortenerServiceTest {
     @Test
     @DisplayName("details of an unknown alias are reported as not found")
     void rejectsDetailsForUnknownAlias() {
-        when(repository.findByAlias("missing")).thenReturn(Optional.empty());
+        when(cacheService.get("missing")).thenThrow(new AliasNotFoundException("missing"));
 
         assertThatThrownBy(() -> service.getUrlDetails("missing")).isInstanceOf(AliasNotFoundException.class);
     }
@@ -443,6 +471,7 @@ class UrlShortenerServiceTest {
         service.deleteUrl("spring", "owner-1");
 
         verify(repository).delete(mapping);
+        verify(cacheService).evictAfterCommit("spring");
     }
 
     @Test
@@ -489,8 +518,8 @@ class UrlShortenerServiceTest {
     @Test
     @DisplayName("public details omits ownerId for caller privacy")
     void publicDetailsOmitsOwnerId() {
-        UrlMapping mapping = ownedMapping("spring", "https://spring.io", null, "owner-1");
-        when(repository.findByAlias("spring")).thenReturn(Optional.of(mapping));
+        CachedUrlMapping mapping = cachedOwnedMapping("spring", "https://spring.io", null, "owner-1");
+        when(cacheService.get("spring")).thenReturn(mapping);
 
         ShortenUrlResponse details = service.getUrlDetails("spring");
 
@@ -528,6 +557,7 @@ class UrlShortenerServiceTest {
         service.deleteUrl("spring", "owner-1");
 
         verify(repository).delete(mapping);
+        verify(cacheService).evictAfterCommit("spring");
     }
 
     @Test
@@ -543,8 +573,8 @@ class UrlShortenerServiceTest {
     @Test
     @DisplayName("getQrCode generates QR code for permanent link with 24 hour cache duration")
     void getQrCodePermanentLink() {
-        UrlMapping mapping = mapping("spring", "https://spring.io", null);
-        when(repository.findByAlias("spring")).thenReturn(Optional.of(mapping));
+        CachedUrlMapping mapping = cachedMapping("spring", "https://spring.io", null);
+        when(cacheService.get("spring")).thenReturn(mapping);
         byte[] expectedBytes = new byte[] {1, 2, 3};
         when(qrCodeService.generatePng("http://localhost:8080/spring", 256)).thenReturn(expectedBytes);
 
@@ -559,8 +589,8 @@ class UrlShortenerServiceTest {
     @DisplayName("getQrCode generates QR code for expiring link with remaining TTL cache duration")
     void getQrCodeExpiringLink() {
         Instant expiresAt = NOW.plusSeconds(3600);
-        UrlMapping mapping = mapping("spring", "https://spring.io", expiresAt);
-        when(repository.findByAlias("spring")).thenReturn(Optional.of(mapping));
+        CachedUrlMapping mapping = cachedMapping("spring", "https://spring.io", expiresAt);
+        when(cacheService.get("spring")).thenReturn(mapping);
         byte[] expectedBytes = new byte[] {4, 5, 6};
         when(qrCodeService.generatePng("http://localhost:8080/spring", 128)).thenReturn(expectedBytes);
 
@@ -575,8 +605,8 @@ class UrlShortenerServiceTest {
     @DisplayName("getQrCode clamps cache duration to 24 hours for distant expiration")
     void getQrCodeDistantExpiringLink() {
         Instant expiresAt = NOW.plus(Duration.ofDays(30));
-        UrlMapping mapping = mapping("spring", "https://spring.io", expiresAt);
-        when(repository.findByAlias("spring")).thenReturn(Optional.of(mapping));
+        CachedUrlMapping mapping = cachedMapping("spring", "https://spring.io", expiresAt);
+        when(cacheService.get("spring")).thenReturn(mapping);
         byte[] expectedBytes = new byte[] {7, 8, 9};
         when(qrCodeService.generatePng("http://localhost:8080/spring", 256)).thenReturn(expectedBytes);
 
@@ -589,8 +619,8 @@ class UrlShortenerServiceTest {
     @DisplayName("getQrCode returns zero cache duration when remaining expiration is under one second")
     void getQrCodeSubSecondExpiringLink() {
         Instant expiresAt = NOW.plusMillis(400);
-        UrlMapping mapping = mapping("spring", "https://spring.io", expiresAt);
-        when(repository.findByAlias("spring")).thenReturn(Optional.of(mapping));
+        CachedUrlMapping mapping = cachedMapping("spring", "https://spring.io", expiresAt);
+        when(cacheService.get("spring")).thenReturn(mapping);
         byte[] expectedBytes = new byte[] {10, 11, 12};
         when(qrCodeService.generatePng("http://localhost:8080/spring", 256)).thenReturn(expectedBytes);
 
@@ -602,7 +632,7 @@ class UrlShortenerServiceTest {
     @Test
     @DisplayName("getQrCode throws AliasNotFoundException when alias does not exist")
     void getQrCodeNotFound() {
-        when(repository.findByAlias("unknown")).thenReturn(Optional.empty());
+        when(cacheService.get("unknown")).thenThrow(new AliasNotFoundException("unknown"));
 
         assertThatThrownBy(() -> service.getQrCode("unknown", 256)).isInstanceOf(AliasNotFoundException.class);
     }
@@ -611,8 +641,8 @@ class UrlShortenerServiceTest {
     @DisplayName("getQrCode throws AliasExpiredException when alias has expired")
     void getQrCodeExpired() {
         Instant past = NOW.minusSeconds(60);
-        UrlMapping mapping = mapping("expired", "https://spring.io", past);
-        when(repository.findByAlias("expired")).thenReturn(Optional.of(mapping));
+        CachedUrlMapping mapping = cachedMapping("expired", "https://spring.io", past);
+        when(cacheService.get("expired")).thenReturn(mapping);
 
         assertThatThrownBy(() -> service.getQrCode("expired", 256)).isInstanceOf(AliasExpiredException.class);
     }

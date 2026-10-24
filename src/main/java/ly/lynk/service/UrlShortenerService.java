@@ -7,6 +7,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
 import ly.lynk.config.AppProperties;
+import ly.lynk.dto.CachedUrlMapping;
 import ly.lynk.dto.QrCodePayload;
 import ly.lynk.dto.ShortenUrlRequest;
 import ly.lynk.dto.ShortenUrlResponse;
@@ -38,6 +39,7 @@ public class UrlShortenerService {
     private final UrlMappingWriter writer;
     private final AliasGenerator aliasGenerator;
     private final QrCodeService qrCodeService;
+    private final UrlMappingCacheService cacheService;
     private final AppProperties properties;
     private final Clock clock;
 
@@ -48,6 +50,7 @@ public class UrlShortenerService {
      * @param writer the transaction-isolated writer for saving mappings
      * @param aliasGenerator generator for Base62 aliases
      * @param qrCodeService service for generating QR code images
+     * @param cacheService distributed cache service for URL mappings
      * @param properties application configuration properties
      * @param clock clock provider for timestamps
      */
@@ -56,12 +59,14 @@ public class UrlShortenerService {
             UrlMappingWriter writer,
             AliasGenerator aliasGenerator,
             QrCodeService qrCodeService,
+            UrlMappingCacheService cacheService,
             AppProperties properties,
             Clock clock) {
         this.repository = repository;
         this.writer = writer;
         this.aliasGenerator = aliasGenerator;
         this.qrCodeService = qrCodeService;
+        this.cacheService = cacheService;
         this.properties = properties;
         this.clock = clock;
     }
@@ -75,7 +80,7 @@ public class UrlShortenerService {
      */
     @Transactional(readOnly = true)
     public ShortenUrlResponse getUrlDetails(String alias) {
-        return toPublicResponse(findRequired(alias));
+        return toPublicResponse(cacheService.get(alias));
     }
 
     /**
@@ -89,12 +94,12 @@ public class UrlShortenerService {
      */
     @Transactional(readOnly = true)
     public QrCodePayload getQrCode(String alias, int size) {
-        UrlMapping mapping = findRequired(alias);
-        if (isExpired(mapping)) {
+        CachedUrlMapping mapping = cacheService.get(alias);
+        if (isExpired(mapping.expiresAt())) {
             throw new AliasExpiredException(alias);
         }
-        Duration cacheDuration = calculateCacheDuration(mapping.getExpiresAt());
-        byte[] imageBytes = qrCodeService.generatePng(buildShortUrl(mapping.getAlias()), size);
+        Duration cacheDuration = calculateCacheDuration(mapping.expiresAt());
+        byte[] imageBytes = qrCodeService.generatePng(buildShortUrl(mapping.alias()), size);
         log.debug("Generated QR code for alias={} size={}", alias, size);
         return new QrCodePayload(imageBytes, cacheDuration);
     }
@@ -161,6 +166,7 @@ public class UrlShortenerService {
         UrlMapping mapping = findRequired(alias);
         assertOwnership(mapping, currentUserId);
         repository.delete(mapping);
+        cacheService.evictAfterCommit(alias);
         log.info("Deleted short URL alias={} ownerId={}", alias, mapping.getOwnerId());
     }
 
@@ -175,14 +181,14 @@ public class UrlShortenerService {
      * @throws AliasExpiredException if the alias has expired
      */
     public String resolveAndTrack(String alias, String rawQuery, boolean trackClick) {
-        UrlMapping mapping = findRequired(alias);
-        if (isExpired(mapping)) {
+        CachedUrlMapping mapping = cacheService.get(alias);
+        if (isExpired(mapping.expiresAt())) {
             throw new AliasExpiredException(alias);
         }
         if (trackClick) {
             repository.incrementClickCount(alias);
         }
-        String target = mergeQuery(mapping.getOriginalUrl(), rawQuery);
+        String target = mergeQuery(mapping.originalUrl(), rawQuery);
         log.debug("Resolved alias={} trackClick={} target={}", alias, trackClick, target);
         return target;
     }
@@ -259,8 +265,7 @@ public class UrlShortenerService {
         return repository.findByAlias(alias).orElseThrow(() -> new AliasNotFoundException(alias));
     }
 
-    private boolean isExpired(UrlMapping mapping) {
-        Instant expiresAt = mapping.getExpiresAt();
+    private boolean isExpired(Instant expiresAt) {
         return expiresAt != null && !clock.instant().isBefore(expiresAt);
     }
 
@@ -370,13 +375,13 @@ public class UrlShortenerService {
                 mapping.getOwnerId());
     }
 
-    private ShortenUrlResponse toPublicResponse(UrlMapping mapping) {
+    private ShortenUrlResponse toPublicResponse(CachedUrlMapping mapping) {
         return new ShortenUrlResponse(
-                mapping.getAlias(),
-                mapping.getOriginalUrl(),
-                buildShortUrl(mapping.getAlias()),
-                mapping.getCreatedAt(),
-                mapping.getExpiresAt(),
+                mapping.alias(),
+                mapping.originalUrl(),
+                buildShortUrl(mapping.alias()),
+                mapping.createdAt(),
+                mapping.expiresAt(),
                 null);
     }
 

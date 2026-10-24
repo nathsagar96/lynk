@@ -2,6 +2,7 @@ package ly.lynk.config;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -20,6 +21,7 @@ import org.springframework.validation.annotation.Validated;
  * @param maxRetryAttempts maximum retry attempts on alias collision
  * @param reservedAliases set of aliases reserved by the system
  * @param corsAllowedOrigins allowed origin patterns for CORS requests
+ * @param cacheTtl time-to-live duration for cached URL mappings in Redis
  */
 @Validated
 @ConfigurationProperties(prefix = "app")
@@ -33,7 +35,9 @@ public record AppProperties(
 
         Set<String> reservedAliases,
 
-        List<String> corsAllowedOrigins) {
+        List<String> corsAllowedOrigins,
+
+        Duration cacheTtl) {
 
     public AppProperties {
         if (baseUrl == null) {
@@ -49,6 +53,9 @@ public record AppProperties(
         }
         if (corsAllowedOrigins == null || corsAllowedOrigins.isEmpty()) {
             corsAllowedOrigins = List.of("http://localhost:3000", "http://localhost:5173", "http://localhost:8080");
+        }
+        if (cacheTtl == null) {
+            cacheTtl = Duration.ofHours(1);
         }
     }
 }
