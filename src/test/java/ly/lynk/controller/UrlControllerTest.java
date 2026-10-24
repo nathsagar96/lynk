@@ -106,6 +106,19 @@ class UrlControllerTest {
     }
 
     @Test
+    @DisplayName("a blank custom alias is treated as omitted and auto-generates an alias")
+    void acceptsBlankCustomAlias() throws Exception {
+        when(service.shortenUrl(any(ShortenUrlRequest.class))).thenReturn(response("auto123"));
+
+        mockMvc.perform(post("/api/v1/urls")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"originalUrl":"https://spring.io","customAlias":""}"""))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.alias").value("auto123"));
+    }
+
+    @Test
     @DisplayName("a malformed custom alias is rejected with a field error")
     void rejectsInvalidCustomAlias() throws Exception {
         mockMvc.perform(post("/api/v1/urls")

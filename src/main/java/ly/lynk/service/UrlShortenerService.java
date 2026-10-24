@@ -2,6 +2,7 @@ package ly.lynk.service;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Locale;
 import ly.lynk.config.AppProperties;
 import ly.lynk.dto.ShortenUrlRequest;
 import ly.lynk.dto.ShortenUrlResponse;
@@ -108,7 +109,6 @@ public class UrlShortenerService {
      * @throws AliasNotFoundException if the alias does not exist
      * @throws AliasExpiredException if the alias has expired
      */
-    @Transactional
     public String resolveAndTrack(String alias, String rawQuery, boolean trackClick) {
         UrlMapping mapping = findRequired(alias);
         if (isExpired(mapping)) {
@@ -134,13 +134,13 @@ public class UrlShortenerService {
      */
     public ShortenUrlResponse shortenUrl(ShortenUrlRequest request) {
         String originalUrl = request.originalUrl();
-        validateTarget(originalUrl, request.customAlias());
+        validateTarget(originalUrl);
 
         Instant createdAt = clock.instant();
         String customAlias = request.customAlias();
 
         if (customAlias != null && !customAlias.isBlank()) {
-            if (properties.reservedAliases().contains(customAlias)) {
+            if (isReserved(customAlias)) {
                 throw new ReservedAliasException(customAlias);
             }
             UrlMapping mapping;
@@ -170,7 +170,7 @@ public class UrlShortenerService {
         int maxAttempts = properties.maxRetryAttempts();
         for (int attempt = 0; attempt < maxAttempts; attempt++) {
             String candidate = aliasGenerator.generate(properties.defaultAliasLength());
-            if (isSelfReferencing(originalUrl, candidate)) {
+            if (isReserved(candidate)) {
                 continue;
             }
             try {
@@ -195,22 +195,34 @@ public class UrlShortenerService {
         return expiresAt != null && !clock.instant().isBefore(expiresAt);
     }
 
-    private void validateTarget(String originalUrl, String customAlias) {
-        if (isSelfReferencing(originalUrl, customAlias)) {
+    private boolean isReserved(String alias) {
+        if (alias == null || alias.isBlank()) {
+            return false;
+        }
+        for (String reserved : properties.reservedAliases()) {
+            if (reserved.equalsIgnoreCase(alias)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void validateTarget(String originalUrl) {
+        if (isSelfReferencing(originalUrl)) {
             throw new InvalidUrlException("originalUrl must not point back to its own short URL");
         }
     }
 
-    private boolean isSelfReferencing(String originalUrl, String alias) {
-        if (alias == null || alias.isBlank()) {
+    private boolean isSelfReferencing(String originalUrl) {
+        if (originalUrl == null || originalUrl.isBlank()) {
             return false;
         }
-        String lower = originalUrl.toLowerCase();
-        String shortUrl = buildShortUrl(alias).toLowerCase();
-        return lower.equals(shortUrl)
-                || lower.startsWith(shortUrl + "?")
-                || lower.startsWith(shortUrl + "/")
-                || lower.startsWith(shortUrl + "#");
+        String lower = originalUrl.toLowerCase(Locale.ROOT);
+        String base = properties.baseUrl().toLowerCase(Locale.ROOT);
+        return lower.equals(base)
+                || lower.startsWith(base + "/")
+                || lower.startsWith(base + "?")
+                || lower.startsWith(base + "#");
     }
 
     private ShortenUrlResponse toResponse(UrlMapping mapping) {

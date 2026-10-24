@@ -28,6 +28,6 @@ public record ShortenUrlRequest(
 
     public ShortenUrlRequest {
         originalUrl = originalUrl == null ? null : originalUrl.trim();
-        customAlias = customAlias == null ? null : customAlias.trim();
+        customAlias = (customAlias == null || customAlias.isBlank()) ? null : customAlias.trim();
     }
 }

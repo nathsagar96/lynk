@@ -181,20 +181,31 @@ class UrlShortenerServiceTest {
         assertThatThrownBy(() ->
                         service.shortenUrl(new ShortenUrlRequest("http://localhost:8080/self#frag", "self", null)))
                 .isInstanceOf(InvalidUrlException.class);
+        assertThatThrownBy(() ->
+                        service.shortenUrl(new ShortenUrlRequest("http://localhost:8080/without-alias", null, null)))
+                .isInstanceOf(InvalidUrlException.class);
         verify(writer, never()).save(any());
     }
 
     @Test
-    @DisplayName("an auto-generated candidate that would be self-referencing is skipped")
-    void skipsSelfReferencingGeneratedCandidate() {
-        when(aliasGenerator.generate(7)).thenReturn("myself", "unique01");
+    @DisplayName("an auto-generated candidate that matches a reserved alias is skipped")
+    void skipsReservedGeneratedCandidate() {
+        when(aliasGenerator.generate(7)).thenReturn("api", "unique01");
         when(writer.save(any(UrlMapping.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        ShortenUrlResponse response =
-                service.shortenUrl(new ShortenUrlRequest("http://localhost:8080/myself", null, null));
+        ShortenUrlResponse response = service.shortenUrl(new ShortenUrlRequest("https://spring.io", null, null));
 
         assertThat(response.alias()).isEqualTo("unique01");
         verify(aliasGenerator, times(2)).generate(7);
+    }
+
+    @Test
+    @DisplayName("a custom alias that matches a reserved alias case-insensitively is rejected")
+    void rejectsCaseInsensitiveReservedAlias() {
+        assertThatThrownBy(() -> service.shortenUrl(new ShortenUrlRequest("https://spring.io", "API", null)))
+                .isInstanceOf(ReservedAliasException.class);
+        assertThatThrownBy(() -> service.shortenUrl(new ShortenUrlRequest("https://spring.io", "Actuator", null)))
+                .isInstanceOf(ReservedAliasException.class);
     }
 
     @Test

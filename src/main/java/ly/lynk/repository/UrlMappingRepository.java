@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
 
 /** Repository for persisting and querying {@link UrlMapping} entities. */
 public interface UrlMappingRepository extends JpaRepository<UrlMapping, Long> {
@@ -24,6 +25,7 @@ public interface UrlMappingRepository extends JpaRepository<UrlMapping, Long> {
      * @param alias the alias whose click count is to be incremented
      * @return the number of updated rows (1 if found, 0 otherwise)
      */
+    @Transactional
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE UrlMapping u SET u.clickCount = u.clickCount + 1 WHERE u.alias = :alias")
     int incrementClickCount(@Param("alias") String alias);
