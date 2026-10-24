@@ -79,4 +79,40 @@ class UrlMappingRepositoryIT {
 
         assertThat(repository.findByAlias("spring")).isEmpty();
     }
+
+    @Test
+    @DisplayName("deleteExpiredBatch purges expired mappings while preserving unexpired and permanent mappings")
+    void deletesExpiredBatchCorrectly() {
+        Instant now = Instant.parse("2026-10-24T12:00:00Z");
+        mapping("exp1", "https://expired1.example", now.minusSeconds(3600));
+        mapping("exp2", "https://expired2.example", now);
+        mapping("future", "https://future.example", now.plusSeconds(3600));
+        mapping("permanent", "https://permanent.example", null);
+
+        int deleted = repository.deleteExpiredBatch(now, 10);
+
+        assertThat(deleted).isEqualTo(2);
+        assertThat(repository.findByAlias("exp1")).isEmpty();
+        assertThat(repository.findByAlias("exp2")).isEmpty();
+        assertThat(repository.findByAlias("future")).isPresent();
+        assertThat(repository.findByAlias("permanent")).isPresent();
+    }
+
+    @Test
+    @DisplayName("deleteExpiredBatch respects batchSize limit")
+    void respectsBatchSizeLimit() {
+        Instant now = Instant.parse("2026-10-24T12:00:00Z");
+        mapping("batch1", "https://expired1.example", now.minusSeconds(100));
+        mapping("batch2", "https://expired2.example", now.minusSeconds(50));
+        mapping("batch3", "https://expired3.example", now.minusSeconds(10));
+
+        int firstBatch = repository.deleteExpiredBatch(now, 2);
+        assertThat(firstBatch).isEqualTo(2);
+
+        int secondBatch = repository.deleteExpiredBatch(now, 2);
+        assertThat(secondBatch).isEqualTo(1);
+
+        int thirdBatch = repository.deleteExpiredBatch(now, 2);
+        assertThat(thirdBatch).isZero();
+    }
 }

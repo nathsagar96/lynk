@@ -1,5 +1,6 @@
 package ly.lynk.repository;
 
+import java.time.Instant;
 import java.util.Optional;
 import ly.lynk.model.UrlMapping;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -29,4 +30,31 @@ public interface UrlMappingRepository extends JpaRepository<UrlMapping, Long> {
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("UPDATE UrlMapping u SET u.clickCount = u.clickCount + 1 WHERE u.alias = :alias")
     int incrementClickCount(@Param("alias") String alias);
+
+    /**
+     * Deletes a batch of expired URL mappings up to {@code batchSize}.
+     *
+     * <p>Uses a common table expression with {@code FOR UPDATE SKIP LOCKED} to prevent
+     * blocking concurrent queries and lock contention.
+     *
+     * @param now the reference expiration threshold
+     * @param batchSize the maximum number of rows to delete in this batch
+     * @return the number of rows actually deleted
+     */
+    @Transactional
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+                WITH expired AS (
+                    SELECT id
+                    FROM url_mappings
+                    WHERE expires_at IS NOT NULL AND expires_at <= :now
+                    ORDER BY expires_at ASC
+                    LIMIT :batchSize
+                    FOR UPDATE SKIP LOCKED
+                )
+                DELETE FROM url_mappings u
+                USING expired e
+                WHERE u.id = e.id
+                """, nativeQuery = true)
+    int deleteExpiredBatch(@Param("now") Instant now, @Param("batchSize") int batchSize);
 }
