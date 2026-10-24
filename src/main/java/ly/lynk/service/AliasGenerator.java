@@ -1,6 +1,6 @@
 package ly.lynk.service;
 
-import java.security.SecureRandom;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.random.RandomGenerator;
 import org.springframework.stereotype.Component;
 
@@ -14,16 +14,16 @@ public class AliasGenerator {
     private final RandomGenerator random;
 
     /**
-     * Creates an alias generator using a default {@link SecureRandom} source.
+     * Creates a thread-safe alias generator backed by {@link ThreadLocalRandom}.
      */
     public AliasGenerator() {
-        this(new SecureRandom());
+        this(null);
     }
 
     /**
      * Creates an alias generator with the given random number generator.
      *
-     * @param random the random number generator
+     * @param random the random number generator, or {@code null} to use {@link ThreadLocalRandom}
      */
     AliasGenerator(RandomGenerator random) {
         this.random = random;
@@ -41,8 +41,9 @@ public class AliasGenerator {
             throw new IllegalArgumentException("Alias length must be positive");
         }
         StringBuilder builder = new StringBuilder(length);
+        RandomGenerator rng = random != null ? random : ThreadLocalRandom.current();
         for (int i = 0; i < length; i++) {
-            builder.append(ALPHABET[random.nextInt(ALPHABET.length)]);
+            builder.append(ALPHABET[rng.nextInt(ALPHABET.length)]);
         }
         return builder.toString();
     }

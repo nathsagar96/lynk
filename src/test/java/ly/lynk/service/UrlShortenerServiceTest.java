@@ -68,6 +68,9 @@ class UrlShortenerServiceTest {
     @Mock
     private UrlMappingCacheService cacheService;
 
+    @Mock
+    private ClickTrackingService clickTrackingService;
+
     private UrlShortenerService service;
     private AppProperties properties;
 
@@ -80,6 +83,7 @@ class UrlShortenerServiceTest {
                 aliasGenerator,
                 qrCodeService,
                 cacheService,
+                clickTrackingService,
                 properties,
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
@@ -91,6 +95,7 @@ class UrlShortenerServiceTest {
                 aliasGenerator,
                 qrCodeService,
                 cacheService,
+                clickTrackingService,
                 new AppProperties(baseUrl, 7, 3, Set.of("api", "actuator"), null, null),
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
@@ -114,15 +119,7 @@ class UrlShortenerServiceTest {
     @Test
     @DisplayName("the short URL is built from the configured base URL")
     void buildsShortUrlFromConfiguredBaseUrl() {
-        properties = new AppProperties("https://lynk.dev", 7, 3, Set.of("api", "actuator"), null, null);
-        service = new UrlShortenerService(
-                repository,
-                writer,
-                aliasGenerator,
-                qrCodeService,
-                cacheService,
-                properties,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+        service = serviceForBaseUrl("https://lynk.dev");
         when(writer.save(any(UrlMapping.class))).thenAnswer(inv -> inv.getArgument(0));
 
         ShortenUrlResponse response =
@@ -134,15 +131,7 @@ class UrlShortenerServiceTest {
     @Test
     @DisplayName("a trailing slash on the base URL does not produce a double slash")
     void normalizesTrailingSlashOnBaseUrl() {
-        properties = new AppProperties("https://lynk.dev/", 7, 3, Set.of("api", "actuator"), null, null);
-        service = new UrlShortenerService(
-                repository,
-                writer,
-                aliasGenerator,
-                qrCodeService,
-                cacheService,
-                properties,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+        service = serviceForBaseUrl("https://lynk.dev/");
         when(writer.save(any(UrlMapping.class))).thenAnswer(inv -> inv.getArgument(0));
 
         ShortenUrlResponse response =
@@ -333,7 +322,7 @@ class UrlShortenerServiceTest {
         String target = service.resolveAndTrack("spring", null, true);
 
         assertThat(target).isEqualTo("https://spring.io");
-        verify(repository).incrementClickCount("spring");
+        verify(clickTrackingService).recordClick("spring");
     }
 
     @Test
@@ -344,7 +333,7 @@ class UrlShortenerServiceTest {
         String target = service.resolveAndTrack("spring", null, false);
 
         assertThat(target).isEqualTo("https://spring.io");
-        verify(repository, never()).incrementClickCount(anyString());
+        verify(clickTrackingService, never()).recordClick(anyString());
     }
 
     @Test
@@ -414,7 +403,7 @@ class UrlShortenerServiceTest {
         when(cacheService.get("old")).thenReturn(cachedMapping("old", "https://spring.io", past));
 
         assertThatThrownBy(() -> service.resolveAndTrack("old", null, true)).isInstanceOf(AliasExpiredException.class);
-        verify(repository, never()).incrementClickCount(anyString());
+        verify(clickTrackingService, never()).recordClick(anyString());
     }
 
     @Test
@@ -426,7 +415,7 @@ class UrlShortenerServiceTest {
         String target = service.resolveAndTrack("active", null, true);
 
         assertThat(target).isEqualTo("https://spring.io");
-        verify(repository).incrementClickCount("active");
+        verify(clickTrackingService).recordClick("active");
     }
 
     @Test

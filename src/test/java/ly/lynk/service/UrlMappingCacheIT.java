@@ -36,6 +36,9 @@ class UrlMappingCacheIT {
     @Autowired
     private CacheConfig cacheConfig;
 
+    @Autowired
+    private ClickFlushService clickFlushService;
+
     @Test
     @DisplayName("resolving a URL caches mapping in Redis and serves subsequent resolutions from cache")
     void cachesUrlMappingAndTracksClicks() {
@@ -48,12 +51,17 @@ class UrlMappingCacheIT {
         Cache cache = cacheManager.getCache(CacheConfig.URL_MAPPINGS_CACHE);
         assertThat(cache).isNotNull();
 
-        // 1. Initial state: cache-aside means cache is not populated yet
-        assertThat(cache.get(alias)).isNull();
+        // 1. Initial state: pre-warmed cache means entry is populated immediately upon creation
+        Cache.ValueWrapper prewarmed = cache.get(alias);
+        assertThat(prewarmed).isNotNull();
+        assertThat(prewarmed.get()).isInstanceOf(CachedUrlMapping.class);
 
-        // 2. First resolution: populates cache and increments click count in DB
+        // 2. First resolution: populates cache and buffers click count
         String resolved1 = shortenerService.resolveAndTrack(alias, null, true);
         assertThat(resolved1).isEqualTo(originalUrl);
+
+        // Flush buffered clicks from Redis to DB
+        clickFlushService.flushPendingClicks();
 
         Cache.ValueWrapper cachedWrapper = cache.get(alias);
         assertThat(cachedWrapper).isNotNull();

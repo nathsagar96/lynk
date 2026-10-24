@@ -40,6 +40,7 @@ public class UrlShortenerService {
     private final AliasGenerator aliasGenerator;
     private final QrCodeService qrCodeService;
     private final UrlMappingCacheService cacheService;
+    private final ClickTrackingService clickTrackingService;
     private final AppProperties properties;
     private final Clock clock;
 
@@ -51,6 +52,7 @@ public class UrlShortenerService {
      * @param aliasGenerator generator for Base62 aliases
      * @param qrCodeService service for generating QR code images
      * @param cacheService distributed cache service for URL mappings
+     * @param clickTrackingService service for asynchronously buffering click tracking events
      * @param properties application configuration properties
      * @param clock clock provider for timestamps
      */
@@ -60,6 +62,7 @@ public class UrlShortenerService {
             AliasGenerator aliasGenerator,
             QrCodeService qrCodeService,
             UrlMappingCacheService cacheService,
+            ClickTrackingService clickTrackingService,
             AppProperties properties,
             Clock clock) {
         this.repository = repository;
@@ -67,6 +70,7 @@ public class UrlShortenerService {
         this.aliasGenerator = aliasGenerator;
         this.qrCodeService = qrCodeService;
         this.cacheService = cacheService;
+        this.clickTrackingService = clickTrackingService;
         this.properties = properties;
         this.clock = clock;
     }
@@ -186,7 +190,7 @@ public class UrlShortenerService {
             throw new AliasExpiredException(alias);
         }
         if (trackClick) {
-            repository.incrementClickCount(alias);
+            clickTrackingService.recordClick(alias);
         }
         String target = mergeQuery(mapping.originalUrl(), rawQuery);
         log.debug("Resolved alias={} trackClick={} target={}", alias, trackClick, target);
@@ -222,6 +226,7 @@ public class UrlShortenerService {
             } catch (DataIntegrityViolationException e) {
                 throw new AliasAlreadyExistsException(customAlias);
             }
+            cacheService.put(CachedUrlMapping.from(mapping));
             log.info(
                     "Created short URL alias={} originalUrl={} expiresAt={} ownerId={}",
                     mapping.getAlias(),
@@ -232,6 +237,7 @@ public class UrlShortenerService {
         }
 
         UrlMapping mapping = generateAndPersist(originalUrl, createdAt, request.expiresAt(), ownerId);
+        cacheService.put(CachedUrlMapping.from(mapping));
         log.info(
                 "Created short URL alias={} originalUrl={} expiresAt={} ownerId={}",
                 mapping.getAlias(),

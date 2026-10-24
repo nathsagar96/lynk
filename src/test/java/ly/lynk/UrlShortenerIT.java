@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.util.UUID;
 import ly.lynk.model.UrlMapping;
 import ly.lynk.repository.UrlMappingRepository;
+import ly.lynk.service.ClickFlushService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,6 +36,9 @@ class UrlShortenerIT {
 
     @Autowired
     private UrlMappingRepository repository;
+
+    @Autowired
+    private ClickFlushService clickFlushService;
 
     @Test
     @DisplayName("a created link can be resolved, tracked, inspected and deleted by its owner")
@@ -82,6 +86,8 @@ class UrlShortenerIT {
         mockMvc.perform(get("/spring").queryParam("source", "test"))
                 .andExpect(status().isFound())
                 .andExpect(header().string("Location", "https://spring.io/projects/spring-boot?source=test"));
+
+        clickFlushService.flushPendingClicks();
 
         // 6. Non-owner (userB) querying stats is forbidden
         mockMvc.perform(get("/api/v1/urls/spring/stats").with(jwt().jwt(b -> b.subject(userB))))

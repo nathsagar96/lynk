@@ -57,9 +57,9 @@ class ProfilesConfigurationTest {
                     assertThat(context.getEnvironment().getProperty("logging.structured.format.console"))
                             .isEqualTo("ecs");
                     assertThat(context.getEnvironment().getProperty("management.tracing.sampling.probability"))
-                            .isEqualTo("0.1");
+                            .isEqualTo("0.01");
                     assertThat(context.getEnvironment().getProperty("spring.datasource.hikari.maximum-pool-size"))
-                            .isEqualTo("10");
+                            .isEqualTo("25");
 
                     AppProperties appProperties = context.getBean(AppProperties.class);
                     assertThat(appProperties.baseUrl()).isEqualTo("https://lynk.dev");
