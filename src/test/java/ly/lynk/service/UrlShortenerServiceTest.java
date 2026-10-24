@@ -10,12 +10,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import ly.lynk.config.AppProperties;
+import ly.lynk.dto.QrCodePayload;
 import ly.lynk.dto.ShortenUrlRequest;
 import ly.lynk.dto.ShortenUrlResponse;
 import ly.lynk.dto.UrlStatsResponse;
@@ -54,6 +56,9 @@ class UrlShortenerServiceTest {
     @Mock
     private AliasGenerator aliasGenerator;
 
+    @Mock
+    private QrCodeService qrCodeService;
+
     private UrlShortenerService service;
     private AppProperties properties;
 
@@ -61,7 +66,7 @@ class UrlShortenerServiceTest {
     void setUp() {
         properties = new AppProperties(BASE_URL, 7, 3, Set.of("api", "actuator"), null);
         service = new UrlShortenerService(
-                repository, writer, aliasGenerator, properties, Clock.fixed(NOW, ZoneOffset.UTC));
+                repository, writer, aliasGenerator, qrCodeService, properties, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     private UrlMapping mapping(String alias, String originalUrl, Instant expiresAt) {
@@ -77,7 +82,7 @@ class UrlShortenerServiceTest {
     void buildsShortUrlFromConfiguredBaseUrl() {
         properties = new AppProperties("https://lynk.dev", 7, 3, Set.of("api", "actuator"), null);
         service = new UrlShortenerService(
-                repository, writer, aliasGenerator, properties, Clock.fixed(NOW, ZoneOffset.UTC));
+                repository, writer, aliasGenerator, qrCodeService, properties, Clock.fixed(NOW, ZoneOffset.UTC));
         when(writer.save(any(UrlMapping.class))).thenAnswer(inv -> inv.getArgument(0));
 
         ShortenUrlResponse response = service.shortenUrl(new ShortenUrlRequest("https://spring.io", "spring", null));
@@ -90,7 +95,7 @@ class UrlShortenerServiceTest {
     void normalizesTrailingSlashOnBaseUrl() {
         properties = new AppProperties("https://lynk.dev/", 7, 3, Set.of("api", "actuator"), null);
         service = new UrlShortenerService(
-                repository, writer, aliasGenerator, properties, Clock.fixed(NOW, ZoneOffset.UTC));
+                repository, writer, aliasGenerator, qrCodeService, properties, Clock.fixed(NOW, ZoneOffset.UTC));
         when(writer.save(any(UrlMapping.class))).thenAnswer(inv -> inv.getArgument(0));
 
         ShortenUrlResponse response = service.shortenUrl(new ShortenUrlRequest("https://spring.io", "spring", null));
@@ -474,5 +479,82 @@ class UrlShortenerServiceTest {
 
         assertThatThrownBy(() -> service.deleteUrl("spring", "intruder")).isInstanceOf(ForbiddenException.class);
         verify(repository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("getQrCode generates QR code for permanent link with 24 hour cache duration")
+    void getQrCodePermanentLink() {
+        UrlMapping mapping = mapping("spring", "https://spring.io", null);
+        when(repository.findByAlias("spring")).thenReturn(Optional.of(mapping));
+        byte[] expectedBytes = new byte[] {1, 2, 3};
+        when(qrCodeService.generatePng("http://localhost:8080/spring", 256)).thenReturn(expectedBytes);
+
+        QrCodePayload payload = service.getQrCode("spring", 256);
+
+        assertThat(payload.imageBytes()).isEqualTo(expectedBytes);
+        assertThat(payload.cacheDuration()).isEqualTo(Duration.ofDays(1));
+        verify(qrCodeService).generatePng("http://localhost:8080/spring", 256);
+    }
+
+    @Test
+    @DisplayName("getQrCode generates QR code for expiring link with remaining TTL cache duration")
+    void getQrCodeExpiringLink() {
+        Instant expiresAt = NOW.plusSeconds(3600);
+        UrlMapping mapping = mapping("spring", "https://spring.io", expiresAt);
+        when(repository.findByAlias("spring")).thenReturn(Optional.of(mapping));
+        byte[] expectedBytes = new byte[] {4, 5, 6};
+        when(qrCodeService.generatePng("http://localhost:8080/spring", 128)).thenReturn(expectedBytes);
+
+        QrCodePayload payload = service.getQrCode("spring", 128);
+
+        assertThat(payload.imageBytes()).isEqualTo(expectedBytes);
+        assertThat(payload.cacheDuration()).isEqualTo(Duration.ofSeconds(3600));
+        verify(qrCodeService).generatePng("http://localhost:8080/spring", 128);
+    }
+
+    @Test
+    @DisplayName("getQrCode clamps cache duration to 24 hours for distant expiration")
+    void getQrCodeDistantExpiringLink() {
+        Instant expiresAt = NOW.plus(Duration.ofDays(30));
+        UrlMapping mapping = mapping("spring", "https://spring.io", expiresAt);
+        when(repository.findByAlias("spring")).thenReturn(Optional.of(mapping));
+        byte[] expectedBytes = new byte[] {7, 8, 9};
+        when(qrCodeService.generatePng("http://localhost:8080/spring", 256)).thenReturn(expectedBytes);
+
+        QrCodePayload payload = service.getQrCode("spring", 256);
+
+        assertThat(payload.cacheDuration()).isEqualTo(Duration.ofDays(1));
+    }
+
+    @Test
+    @DisplayName("getQrCode returns zero cache duration when remaining expiration is under one second")
+    void getQrCodeSubSecondExpiringLink() {
+        Instant expiresAt = NOW.plusMillis(400);
+        UrlMapping mapping = mapping("spring", "https://spring.io", expiresAt);
+        when(repository.findByAlias("spring")).thenReturn(Optional.of(mapping));
+        byte[] expectedBytes = new byte[] {10, 11, 12};
+        when(qrCodeService.generatePng("http://localhost:8080/spring", 256)).thenReturn(expectedBytes);
+
+        QrCodePayload payload = service.getQrCode("spring", 256);
+
+        assertThat(payload.cacheDuration()).isEqualTo(Duration.ZERO);
+    }
+
+    @Test
+    @DisplayName("getQrCode throws AliasNotFoundException when alias does not exist")
+    void getQrCodeNotFound() {
+        when(repository.findByAlias("unknown")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getQrCode("unknown", 256)).isInstanceOf(AliasNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("getQrCode throws AliasExpiredException when alias has expired")
+    void getQrCodeExpired() {
+        Instant past = NOW.minusSeconds(60);
+        UrlMapping mapping = mapping("expired", "https://spring.io", past);
+        when(repository.findByAlias("expired")).thenReturn(Optional.of(mapping));
+
+        assertThatThrownBy(() -> service.getQrCode("expired", 256)).isInstanceOf(AliasExpiredException.class);
     }
 }

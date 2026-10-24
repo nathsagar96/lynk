@@ -1,5 +1,6 @@
 package ly.lynk;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -162,5 +163,32 @@ class UrlShortenerIT {
         mockMvc.perform(get("/api/v1/urls/gone/stats").with(jwt().jwt(b -> b.subject(user))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ownerId").value(user));
+    }
+
+    @Test
+    @DisplayName("a created link can have its QR code fetched as a valid PNG image")
+    void retrievesQrCodeForCreatedLink() throws Exception {
+        String user = UUID.randomUUID().toString();
+
+        mockMvc.perform(post("/api/v1/urls")
+                        .with(jwt().jwt(b -> b.subject(user)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"originalUrl":"https://spring.io/projects/spring-boot","customAlias":"qrlink"}"""))
+                .andExpect(status().isCreated());
+
+        MvcResult qrResult = mockMvc.perform(get("/api/v1/urls/qrlink/qr").param("size", "300"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", MediaType.IMAGE_PNG_VALUE))
+                .andExpect(header().string("Content-Disposition", "inline"))
+                .andExpect(header().exists("Cache-Control"))
+                .andReturn();
+
+        byte[] bytes = qrResult.getResponse().getContentAsByteArray();
+        assertThat(bytes).isNotEmpty();
+        assertThat(bytes[0]).isEqualTo((byte) 0x89);
+        assertThat(bytes[1]).isEqualTo((byte) 0x50);
+        assertThat(bytes[2]).isEqualTo((byte) 0x4E);
+        assertThat(bytes[3]).isEqualTo((byte) 0x47);
     }
 }

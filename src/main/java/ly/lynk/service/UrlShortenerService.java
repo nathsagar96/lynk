@@ -1,9 +1,11 @@
 package ly.lynk.service;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
 import ly.lynk.config.AppProperties;
+import ly.lynk.dto.QrCodePayload;
 import ly.lynk.dto.ShortenUrlRequest;
 import ly.lynk.dto.ShortenUrlResponse;
 import ly.lynk.dto.UrlStatsResponse;
@@ -33,6 +35,7 @@ public class UrlShortenerService {
     private final UrlMappingRepository repository;
     private final UrlMappingWriter writer;
     private final AliasGenerator aliasGenerator;
+    private final QrCodeService qrCodeService;
     private final AppProperties properties;
     private final Clock clock;
 
@@ -42,6 +45,7 @@ public class UrlShortenerService {
      * @param repository the repository for querying mappings and click counters
      * @param writer the transaction-isolated writer for saving mappings
      * @param aliasGenerator generator for Base62 aliases
+     * @param qrCodeService service for generating QR code images
      * @param properties application configuration properties
      * @param clock clock provider for timestamps
      */
@@ -49,11 +53,13 @@ public class UrlShortenerService {
             UrlMappingRepository repository,
             UrlMappingWriter writer,
             AliasGenerator aliasGenerator,
+            QrCodeService qrCodeService,
             AppProperties properties,
             Clock clock) {
         this.repository = repository;
         this.writer = writer;
         this.aliasGenerator = aliasGenerator;
+        this.qrCodeService = qrCodeService;
         this.properties = properties;
         this.clock = clock;
     }
@@ -68,6 +74,38 @@ public class UrlShortenerService {
     @Transactional(readOnly = true)
     public ShortenUrlResponse getUrlDetails(String alias) {
         return toPublicResponse(findRequired(alias));
+    }
+
+    /**
+     * Generates a QR code image and determines cache duration for the given alias.
+     *
+     * @param alias the alias to generate QR code for
+     * @param size dimension in pixels
+     * @return QR code payload containing image bytes and cache duration
+     * @throws AliasNotFoundException if the alias does not exist
+     * @throws AliasExpiredException if the alias has expired
+     */
+    @Transactional(readOnly = true)
+    public QrCodePayload getQrCode(String alias, int size) {
+        UrlMapping mapping = findRequired(alias);
+        if (isExpired(mapping)) {
+            throw new AliasExpiredException(alias);
+        }
+        Duration cacheDuration = calculateCacheDuration(mapping.getExpiresAt());
+        byte[] imageBytes = qrCodeService.generatePng(buildShortUrl(mapping.getAlias()), size);
+        log.debug("Generated QR code for alias={} size={}", alias, size);
+        return new QrCodePayload(imageBytes, cacheDuration);
+    }
+
+    private Duration calculateCacheDuration(Instant expiresAt) {
+        if (expiresAt == null) {
+            return Duration.ofDays(1);
+        }
+        Duration remaining = Duration.between(clock.instant(), expiresAt);
+        if (remaining.isNegative() || remaining.toSeconds() <= 0) {
+            return Duration.ZERO;
+        }
+        return remaining.compareTo(Duration.ofDays(1)) < 0 ? remaining : Duration.ofDays(1);
     }
 
     /**

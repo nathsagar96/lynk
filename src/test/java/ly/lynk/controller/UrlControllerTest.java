@@ -16,18 +16,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import ly.lynk.TestSecurityConfiguration;
 import ly.lynk.config.SecurityConfig;
+import ly.lynk.dto.QrCodePayload;
 import ly.lynk.dto.ShortenUrlRequest;
 import ly.lynk.dto.ShortenUrlResponse;
 import ly.lynk.dto.UrlStatsResponse;
 import ly.lynk.exception.AliasAlreadyExistsException;
+import ly.lynk.exception.AliasExpiredException;
 import ly.lynk.exception.AliasGenerationException;
 import ly.lynk.exception.AliasNotFoundException;
 import ly.lynk.exception.ForbiddenException;
 import ly.lynk.exception.InvalidUrlException;
+import ly.lynk.exception.QrCodeGenerationException;
 import ly.lynk.exception.ReservedAliasException;
 import ly.lynk.service.UrlShortenerService;
 import org.junit.jupiter.api.DisplayName;
@@ -403,5 +407,90 @@ class UrlControllerTest {
                         .header("Access-Control-Request-Method", "POST"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3000"));
+    }
+
+    @Test
+    @DisplayName("retrieving QR code without authentication returns 200 with PNG and cache headers")
+    void retrievesQrCodeSuccessfully() throws Exception {
+        byte[] fakePng = new byte[] {(byte) 0x89, 0x50, 0x4E, 0x47};
+        when(service.getQrCode("spring", 256)).thenReturn(new QrCodePayload(fakePng, Duration.ofDays(1)));
+
+        mockMvc.perform(get("/api/v1/urls/spring/qr"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.IMAGE_PNG))
+                .andExpect(header().string("Content-Disposition", "inline"))
+                .andExpect(header().string("Cache-Control", "max-age=86400, public"))
+                .andExpect(content().bytes(fakePng));
+    }
+
+    @Test
+    @DisplayName("retrieving QR code with custom size passes parameter to service")
+    void retrievesQrCodeCustomSize() throws Exception {
+        byte[] fakePng = new byte[] {1, 2, 3};
+        when(service.getQrCode("spring", 512)).thenReturn(new QrCodePayload(fakePng, Duration.ofSeconds(1800)));
+
+        mockMvc.perform(get("/api/v1/urls/spring/qr").param("size", "512"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.IMAGE_PNG))
+                .andExpect(header().string("Cache-Control", "max-age=1800, public"))
+                .andExpect(content().bytes(fakePng));
+    }
+
+    @Test
+    @DisplayName("retrieving QR code with zero TTL returns no-store cache control")
+    void retrievesQrCodeZeroTtl() throws Exception {
+        byte[] fakePng = new byte[] {1, 2, 3};
+        when(service.getQrCode("spring", 256)).thenReturn(new QrCodePayload(fakePng, Duration.ZERO));
+
+        mockMvc.perform(get("/api/v1/urls/spring/qr"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(content().bytes(fakePng));
+    }
+
+    @Test
+    @DisplayName("retrieving QR code for non-existent alias returns 404 Not Found")
+    void retrievesQrCodeNotFound() throws Exception {
+        when(service.getQrCode("missing", 256)).thenThrow(new AliasNotFoundException("missing"));
+
+        mockMvc.perform(get("/api/v1/urls/missing/qr"))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("https://lynk.ly/problems/alias-not-found"));
+    }
+
+    @Test
+    @DisplayName("retrieving QR code for expired alias returns 410 Gone")
+    void retrievesQrCodeExpired() throws Exception {
+        when(service.getQrCode("expired", 256)).thenThrow(new AliasExpiredException("expired"));
+
+        mockMvc.perform(get("/api/v1/urls/expired/qr"))
+                .andExpect(status().isGone())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("https://lynk.ly/problems/alias-expired"));
+    }
+
+    @Test
+    @DisplayName("retrieving QR code with size below minimum returns 400 Bad Request")
+    void rejectsSizeTooSmall() throws Exception {
+        mockMvc.perform(get("/api/v1/urls/spring/qr").param("size", "32")).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("retrieving QR code with size above maximum returns 400 Bad Request")
+    void rejectsSizeTooLarge() throws Exception {
+        mockMvc.perform(get("/api/v1/urls/spring/qr").param("size", "2048")).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("generation failure returns 500 ProblemDetail")
+    void handlesQrCodeGenerationFailure() throws Exception {
+        when(service.getQrCode("spring", 256))
+                .thenThrow(new QrCodeGenerationException("Generation failed", new RuntimeException("boom")));
+
+        mockMvc.perform(get("/api/v1/urls/spring/qr"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("https://lynk.ly/problems/qr-generation-failed"));
     }
 }

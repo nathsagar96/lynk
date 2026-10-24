@@ -12,16 +12,27 @@
 
     <groupId>ly.lynk</groupId>
     <artifactId>lynk</artifactId>
-    <version>0.0.5-SNAPSHOT</version>
+    <version>0.0.6-SNAPSHOT</version>
     <name>lynk</name>
     <description>URL shortener service</description>
 
     <properties>
         <java.version>25</java.version>
         <spotless-maven-plugin.version>3.10.4</spotless-maven-plugin.version>
+        <zxing.version>3.5.3</zxing.version>
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>com.google.zxing</groupId>
+            <artifactId>core</artifactId>
+            <version>${zxing.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.zxing</groupId>
+            <artifactId>javase</artifactId>
+            <version>${zxing.version}</version>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>

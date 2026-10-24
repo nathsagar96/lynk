@@ -1,8 +1,11 @@
 package ly.lynk.controller;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import java.net.URI;
 import ly.lynk.config.AppProperties;
+import ly.lynk.dto.QrCodePayload;
 import ly.lynk.dto.ShortenUrlRequest;
 import ly.lynk.dto.ShortenUrlResponse;
 import ly.lynk.dto.UrlStatsResponse;
@@ -12,18 +15,24 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.http.CacheControl;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /** REST API endpoints for creating, retrieving, and managing URL mappings. */
+@Validated
 @RestController
 @RequestMapping("/api/v1/urls")
 public class UrlController {
@@ -88,6 +97,27 @@ public class UrlController {
     @GetMapping("/{alias}")
     public ResponseEntity<ShortenUrlResponse> get(@PathVariable String alias) {
         return ResponseEntity.ok(service.getUrlDetails(alias));
+    }
+
+    /**
+     * Generates and returns a QR code image in PNG format for the given alias.
+     *
+     * @param alias the alias to look up
+     * @param size dimension in pixels (width and height)
+     * @return 200 OK response with PNG image bytes
+     */
+    @GetMapping(value = "/{alias}/qr", produces = MediaType.IMAGE_PNG_VALUE)
+    public ResponseEntity<byte[]> getQrCode(
+            @PathVariable String alias, @RequestParam(defaultValue = "256") @Min(64) @Max(1024) int size) {
+        QrCodePayload payload = service.getQrCode(alias, size);
+        CacheControl cacheControl = payload.cacheDuration().isZero()
+                ? CacheControl.noStore()
+                : CacheControl.maxAge(payload.cacheDuration()).cachePublic();
+        return ResponseEntity.ok()
+                .cacheControl(cacheControl)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline")
+                .contentType(MediaType.IMAGE_PNG)
+                .body(payload.imageBytes());
     }
 
     /**

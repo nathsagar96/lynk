@@ -1,5 +1,6 @@
 package ly.lynk.exception;
 
+import jakarta.validation.ConstraintViolationException;
 import java.net.URI;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -39,6 +40,22 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(AliasNotFoundException.class)
     public ResponseEntity<ProblemDetail> handleNotFound(AliasNotFoundException ex) {
         return problem(HttpStatus.NOT_FOUND, "alias-not-found", ex.getMessage(), "The requested alias does not exist");
+    }
+
+    /**
+     * Maps {@link QrCodeGenerationException} to a 500 Internal Server Error response.
+     *
+     * @param ex the exception thrown
+     * @return 500 Internal Server Error problem detail
+     */
+    @ExceptionHandler(QrCodeGenerationException.class)
+    public ResponseEntity<ProblemDetail> handleQrCodeGeneration(QrCodeGenerationException ex) {
+        log.error("QR code generation failure", ex);
+        return problem(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "qr-generation-failed",
+                ex.getMessage(),
+                "Failed to generate QR code image");
     }
 
     /**
@@ -83,6 +100,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(InvalidUrlException.class)
     public ResponseEntity<ProblemDetail> handleInvalidUrl(InvalidUrlException ex) {
         return problem(HttpStatus.BAD_REQUEST, "invalid-url", ex.getMessage(), "The supplied URL is not acceptable");
+    }
+
+    /**
+     * Maps {@link ConstraintViolationException} to a 400 Bad Request response.
+     *
+     * @param ex the exception thrown
+     * @return 400 Bad Request problem detail
+     */
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ProblemDetail> handleConstraintViolation(ConstraintViolationException ex) {
+        return problem(HttpStatus.BAD_REQUEST, "validation-failed", ex.getMessage(), "Request validation failed");
     }
 
     /**
