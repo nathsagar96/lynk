@@ -19,6 +19,7 @@ import ly.lynk.dto.ShortenUrlRequest;
 import ly.lynk.dto.ShortenUrlResponse;
 import ly.lynk.dto.UrlStatsResponse;
 import ly.lynk.exception.AliasAlreadyExistsException;
+import ly.lynk.exception.AliasGenerationException;
 import ly.lynk.exception.AliasNotFoundException;
 import ly.lynk.exception.InvalidUrlException;
 import ly.lynk.exception.ReservedAliasException;
@@ -174,6 +175,51 @@ class UrlControllerTest {
                         .content("""
                         {"originalUrl":"https://spring.io"}"""))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("an alias generation failure surfaces as 500")
+    void reportsGenerationFailure() throws Exception {
+        when(service.shortenUrl(any(ShortenUrlRequest.class)))
+                .thenThrow(new AliasGenerationException("Unable to generate alias"));
+
+        mockMvc.perform(post("/api/v1/urls")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"originalUrl":"https://spring.io"}"""))
+                .andExpect(status().isInternalServerError())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("https://lynk.ly/problems/alias-generation-failed"));
+    }
+
+    @Test
+    @DisplayName("an unexpected exception surfaces as 500 internal server error")
+    void reportsUnexpectedError() throws Exception {
+        when(service.shortenUrl(any(ShortenUrlRequest.class))).thenThrow(new RuntimeException("Database unreachable"));
+
+        mockMvc.perform(post("/api/v1/urls")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"originalUrl":"https://spring.io"}"""))
+                .andExpect(status().isInternalServerError())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("https://lynk.ly/problems/internal-server-error"));
+    }
+
+    @Test
+    @DisplayName("shortening a URL with a future expiration returns 201 with expiresAt")
+    void createsShortUrlWithExpiration() throws Exception {
+        Instant expiresAt = NOW.plusSeconds(3600);
+        when(service.shortenUrl(any(ShortenUrlRequest.class)))
+                .thenReturn(new ShortenUrlResponse(
+                        "spring", "https://spring.io", "http://localhost:8080/spring", NOW, expiresAt));
+
+        mockMvc.perform(post("/api/v1/urls")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"originalUrl":"https://spring.io","expiresAt":"2099-01-01T00:00:00Z"}"""))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.expiresAt").value(expiresAt.toString()));
     }
 
     @Test

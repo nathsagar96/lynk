@@ -7,6 +7,13 @@ import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import ly.lynk.validation.HttpUrl;
 
+/**
+ * Request payload for shortening a URL.
+ *
+ * @param originalUrl the target URL to shorten
+ * @param customAlias optional custom alias (3-32 alphanumeric/dash/underscore chars)
+ * @param expiresAt optional expiration timestamp; if specified, must be in the future
+ */
 public record ShortenUrlRequest(
         @NotBlank(message = "originalUrl must not be blank")
         @Size(max = 2048, message = "originalUrl must not exceed 2048 characters")

@@ -13,6 +13,11 @@ import org.springframework.validation.annotation.Validated;
  * the incoming request host is never consulted. Configure it with
  * {@code app.base-url} (or the {@code APP_BASE_URL} environment variable);
  * a blank value fails startup.
+ *
+ * @param baseUrl the base public URL used for constructing shortened links
+ * @param defaultAliasLength default length of generated Base62 aliases
+ * @param maxRetryAttempts maximum retry attempts on alias collision
+ * @param reservedAliases set of aliases reserved by the system
  */
 @Validated
 @ConfigurationProperties(prefix = "app")

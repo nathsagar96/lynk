@@ -20,6 +20,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/** Core service for creating, resolving, inspecting, and deleting shortened URLs. */
 @Service
 public class UrlShortenerService {
 
@@ -31,6 +32,15 @@ public class UrlShortenerService {
     private final AppProperties properties;
     private final Clock clock;
 
+    /**
+     * Creates a new URL shortener service with the required dependencies.
+     *
+     * @param repository the repository for querying mappings and click counters
+     * @param writer the transaction-isolated writer for saving mappings
+     * @param aliasGenerator generator for Base62 aliases
+     * @param properties application configuration properties
+     * @param clock clock provider for timestamps
+     */
     public UrlShortenerService(
             UrlMappingRepository repository,
             UrlMappingWriter writer,
@@ -44,11 +54,25 @@ public class UrlShortenerService {
         this.clock = clock;
     }
 
+    /**
+     * Retrieves details for an existing alias.
+     *
+     * @param alias the alias to look up
+     * @return response containing the shortened URL details
+     * @throws AliasNotFoundException if the alias does not exist
+     */
     @Transactional(readOnly = true)
     public ShortenUrlResponse getUrlDetails(String alias) {
         return toResponse(findRequired(alias));
     }
 
+    /**
+     * Retrieves click statistics and metadata for an existing alias.
+     *
+     * @param alias the alias to query
+     * @return statistics response containing click counts and metadata
+     * @throws AliasNotFoundException if the alias does not exist
+     */
     @Transactional(readOnly = true)
     public UrlStatsResponse getStats(String alias) {
         UrlMapping mapping = findRequired(alias);
@@ -61,6 +85,12 @@ public class UrlShortenerService {
                 mapping.getExpiresAt());
     }
 
+    /**
+     * Deletes the URL mapping associated with the given alias.
+     *
+     * @param alias the alias to delete
+     * @throws AliasNotFoundException if the alias does not exist
+     */
     @Transactional
     public void deleteUrl(String alias) {
         UrlMapping mapping = findRequired(alias);
@@ -68,6 +98,16 @@ public class UrlShortenerService {
         log.info("Deleted short URL alias={}", alias);
     }
 
+    /**
+     * Resolves an alias to its target URL, tracking clicks and appending query parameters.
+     *
+     * @param alias the alias to resolve
+     * @param rawQuery the incoming raw query string, or {@code null}
+     * @param trackClick whether to record a click in the database
+     * @return the resolved destination URL
+     * @throws AliasNotFoundException if the alias does not exist
+     * @throws AliasExpiredException if the alias has expired
+     */
     @Transactional
     public String resolveAndTrack(String alias, String rawQuery, boolean trackClick) {
         UrlMapping mapping = findRequired(alias);
@@ -82,6 +122,16 @@ public class UrlShortenerService {
         return target;
     }
 
+    /**
+     * Creates a shortened URL mapping using a custom or auto-generated alias.
+     *
+     * @param request the shorten request containing original URL and optional alias/expiry
+     * @return response with the created mapping details
+     * @throws ReservedAliasException if the custom alias is reserved
+     * @throws AliasAlreadyExistsException if the custom alias already exists
+     * @throws InvalidUrlException if the original URL is self-referencing
+     * @throws AliasGenerationException if generating a unique alias fails
+     */
     public ShortenUrlResponse shortenUrl(ShortenUrlRequest request) {
         String originalUrl = request.originalUrl();
         validateTarget(originalUrl, request.customAlias());
@@ -172,20 +222,15 @@ public class UrlShortenerService {
                 mapping.getExpiresAt());
     }
 
-    /**
-     * Builds the public short URL from the configured base URL.
-     */
+    /** Builds the public short URL from the configured base URL. */
     private String buildShortUrl(String alias) {
         return properties.baseUrl() + "/" + alias;
     }
 
     /**
-     * Appends the incoming raw query string to the target URL, keeping the target's
-     * existing
-     * parameters and their encoding byte-for-byte. The raw query is never
-     * re-parsed: clients can
-     * send a malformed escape such as {@code ?q=100%}, and parsing it would fail
-     * the redirect.
+     * Appends the incoming raw query string to the target URL, preserving encoding.
+     *
+     * <p>The raw query is never reparsed to avoid failing redirects on malformed escapes.
      */
     private String mergeQuery(String targetUrl, String rawQuery) {
         if (rawQuery == null || rawQuery.isBlank()) {

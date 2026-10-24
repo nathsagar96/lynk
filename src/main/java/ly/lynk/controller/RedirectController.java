@@ -22,6 +22,11 @@ public class RedirectController {
 
     private final UrlShortenerService service;
 
+    /**
+     * Creates a redirect controller with the given URL shortener service.
+     *
+     * @param service the URL shortener service
+     */
     public RedirectController(UrlShortenerService service) {
         this.service = service;
     }
@@ -31,6 +36,10 @@ public class RedirectController {
      *
      * <p>{@code GET} records a click; {@code HEAD} resolves without recording one so that link
      * checkers and prefetchers do not inflate the statistics.
+     *
+     * @param alias the alias to redirect
+     * @param request the incoming HTTP servlet request
+     * @return 302 Found response with Location and cache-control headers
      */
     @RequestMapping(
             value = "/{alias:[a-zA-Z0-9_-]+}",

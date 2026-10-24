@@ -29,31 +29,67 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     private static final String PROBLEM_BASE = "https://lynk.ly/problems/";
 
+    /**
+     * Maps {@link AliasNotFoundException} to a 404 Not Found response.
+     *
+     * @param ex the exception thrown
+     * @return 404 Not Found problem detail
+     */
     @ExceptionHandler(AliasNotFoundException.class)
     public ResponseEntity<ProblemDetail> handleNotFound(AliasNotFoundException ex) {
         return problem(HttpStatus.NOT_FOUND, "alias-not-found", ex.getMessage(), "The requested alias does not exist");
     }
 
+    /**
+     * Maps {@link AliasExpiredException} to a 410 Gone response.
+     *
+     * @param ex the exception thrown
+     * @return 410 Gone problem detail
+     */
     @ExceptionHandler(AliasExpiredException.class)
     public ResponseEntity<ProblemDetail> handleExpired(AliasExpiredException ex) {
         return problem(HttpStatus.GONE, "alias-expired", ex.getMessage(), "The requested alias has expired");
     }
 
+    /**
+     * Maps {@link AliasAlreadyExistsException} to a 409 Conflict response.
+     *
+     * @param ex the exception thrown
+     * @return 409 Conflict problem detail
+     */
     @ExceptionHandler(AliasAlreadyExistsException.class)
     public ResponseEntity<ProblemDetail> handleAlreadyExists(AliasAlreadyExistsException ex) {
         return problem(HttpStatus.CONFLICT, "alias-already-exists", ex.getMessage(), "The requested alias is taken");
     }
 
+    /**
+     * Maps {@link ReservedAliasException} to a 400 Bad Request response.
+     *
+     * @param ex the exception thrown
+     * @return 400 Bad Request problem detail
+     */
     @ExceptionHandler(ReservedAliasException.class)
     public ResponseEntity<ProblemDetail> handleReserved(ReservedAliasException ex) {
         return problem(HttpStatus.BAD_REQUEST, "alias-reserved", ex.getMessage(), "The requested alias is reserved");
     }
 
+    /**
+     * Maps {@link InvalidUrlException} to a 400 Bad Request response.
+     *
+     * @param ex the exception thrown
+     * @return 400 Bad Request problem detail
+     */
     @ExceptionHandler(InvalidUrlException.class)
     public ResponseEntity<ProblemDetail> handleInvalidUrl(InvalidUrlException ex) {
         return problem(HttpStatus.BAD_REQUEST, "invalid-url", ex.getMessage(), "The supplied URL is not acceptable");
     }
 
+    /**
+     * Maps {@link AliasGenerationException} to a 500 Internal Server Error response.
+     *
+     * @param ex the exception thrown
+     * @return 500 Internal Server Error problem detail
+     */
     @ExceptionHandler(AliasGenerationException.class)
     public ResponseEntity<ProblemDetail> handleGenerationFailure(AliasGenerationException ex) {
         log.error("Alias generation failed", ex);
@@ -64,6 +100,12 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 "A unique alias could not be generated");
     }
 
+    /**
+     * Maps unexpected exceptions to a 500 Internal Server Error response.
+     *
+     * @param ex the exception thrown
+     * @return 500 Internal Server Error problem detail
+     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail> handleUnexpected(Exception ex) {
         log.error("Unhandled exception while processing request", ex);
@@ -74,6 +116,15 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 "Internal server error");
     }
 
+    /**
+     * Handles validation failures on request bodies by including field errors in problem detail.
+     *
+     * @param ex the method argument validation exception
+     * @param headers HTTP headers
+     * @param status HTTP status code
+     * @param request current web request
+     * @return 400 Bad Request problem detail containing validation errors
+     */
     @Override
     protected ResponseEntity<Object> handleMethodArgumentNotValid(
             @NonNull MethodArgumentNotValidException ex,

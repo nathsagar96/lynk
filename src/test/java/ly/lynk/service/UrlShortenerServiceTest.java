@@ -176,9 +176,38 @@ class UrlShortenerServiceTest {
         assertThatThrownBy(() -> service.shortenUrl(new ShortenUrlRequest("http://localhost:8080/self/", "self", null)))
                 .isInstanceOf(InvalidUrlException.class);
         assertThatThrownBy(() ->
+                        service.shortenUrl(new ShortenUrlRequest("http://localhost:8080/self?query=1", "self", null)))
+                .isInstanceOf(InvalidUrlException.class);
+        assertThatThrownBy(() ->
                         service.shortenUrl(new ShortenUrlRequest("http://localhost:8080/self#frag", "self", null)))
                 .isInstanceOf(InvalidUrlException.class);
         verify(writer, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("an auto-generated candidate that would be self-referencing is skipped")
+    void skipsSelfReferencingGeneratedCandidate() {
+        when(aliasGenerator.generate(7)).thenReturn("myself", "unique01");
+        when(writer.save(any(UrlMapping.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ShortenUrlResponse response =
+                service.shortenUrl(new ShortenUrlRequest("http://localhost:8080/myself", null, null));
+
+        assertThat(response.alias()).isEqualTo("unique01");
+        verify(aliasGenerator, times(2)).generate(7);
+    }
+
+    @Test
+    @DisplayName("the expiration date is stored and returned when shortening a URL")
+    void shortensWithExpirationDate() {
+        Instant expiresAt = NOW.plusSeconds(3600);
+        when(writer.save(any(UrlMapping.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ShortenUrlResponse response =
+                service.shortenUrl(new ShortenUrlRequest("https://spring.io", "spring", expiresAt));
+
+        assertThat(response.alias()).isEqualTo("spring");
+        assertThat(response.expiresAt()).isEqualTo(expiresAt);
     }
 
     @Test
@@ -274,6 +303,18 @@ class UrlShortenerServiceTest {
 
         assertThatThrownBy(() -> service.resolveAndTrack("old", null, true)).isInstanceOf(AliasExpiredException.class);
         verify(repository, never()).incrementClickCount(anyString());
+    }
+
+    @Test
+    @DisplayName("an unexpired alias can be resolved normally")
+    void resolvesUnexpiredAlias() {
+        Instant future = NOW.plusSeconds(3600);
+        when(repository.findByAlias("active")).thenReturn(Optional.of(mapping("active", "https://spring.io", future)));
+
+        String target = service.resolveAndTrack("active", null, true);
+
+        assertThat(target).isEqualTo("https://spring.io");
+        verify(repository).incrementClickCount("active");
     }
 
     @Test

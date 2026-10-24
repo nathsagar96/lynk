@@ -18,10 +18,21 @@ public class UrlMappingWriter {
 
     private final UrlMappingRepository repository;
 
+    /**
+     * Creates a writer with the given repository.
+     *
+     * @param repository the URL mapping repository
+     */
     public UrlMappingWriter(UrlMappingRepository repository) {
         this.repository = repository;
     }
 
+    /**
+     * Saves and flushes the mapping in a new isolated transaction.
+     *
+     * @param mapping the URL mapping entity to persist
+     * @return the saved entity
+     */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public UrlMapping save(UrlMapping mapping) {
         return repository.saveAndFlush(mapping);

@@ -8,6 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
 
+/** JPA entity representing a shortened URL mapping and its click statistics. */
 @Entity
 @Table(name = "url_mappings")
 public class UrlMapping {
@@ -33,6 +34,14 @@ public class UrlMapping {
 
     protected UrlMapping() {}
 
+    /**
+     * Creates a new URL mapping entity.
+     *
+     * @param originalUrl the original target URL
+     * @param alias the unique alias
+     * @param createdAt the creation instant
+     * @param expiresAt the optional expiration instant, or {@code null} if none
+     */
     public UrlMapping(String originalUrl, String alias, Instant createdAt, Instant expiresAt) {
         this.originalUrl = originalUrl;
         this.alias = alias;
@@ -41,26 +50,56 @@ public class UrlMapping {
         this.clickCount = 0L;
     }
 
+    /**
+     * Returns the database ID.
+     *
+     * @return the primary key ID
+     */
     public Long getId() {
         return id;
     }
 
+    /**
+     * Returns the original target URL.
+     *
+     * @return the target URL
+     */
     public String getOriginalUrl() {
         return originalUrl;
     }
 
+    /**
+     * Returns the unique alias.
+     *
+     * @return the alias
+     */
     public String getAlias() {
         return alias;
     }
 
+    /**
+     * Returns the creation timestamp.
+     *
+     * @return the creation instant
+     */
     public Instant getCreatedAt() {
         return createdAt;
     }
 
+    /**
+     * Returns the optional expiration timestamp, or {@code null} if it never expires.
+     *
+     * @return the expiration instant, or {@code null}
+     */
     public Instant getExpiresAt() {
         return expiresAt;
     }
 
+    /**
+     * Returns the total click count.
+     *
+     * @return the click count
+     */
     public long getClickCount() {
         return clickCount;
     }

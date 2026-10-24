@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.HashSet;
+import java.util.Random;
 import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -11,6 +12,15 @@ import org.junit.jupiter.api.Test;
 class AliasGeneratorTest {
 
     private final AliasGenerator generator = new AliasGenerator();
+
+    @Test
+    @DisplayName("generates deterministic output when using a seeded random generator")
+    void generatesDeterministicAliasesWithFixedSeed() {
+        AliasGenerator seeded1 = new AliasGenerator(new Random(42));
+        AliasGenerator seeded2 = new AliasGenerator(new Random(42));
+
+        assertThat(seeded1.generate(7)).isEqualTo(seeded2.generate(7));
+    }
 
     @Test
     @DisplayName("generated aliases have exactly the requested length")
@@ -41,7 +51,11 @@ class AliasGeneratorTest {
     @Test
     @DisplayName("a non-positive length is rejected")
     void rejectsNonPositiveLength() {
-        assertThatThrownBy(() -> generator.generate(0)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> generator.generate(-1)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> generator.generate(0))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Alias length must be positive");
+        assertThatThrownBy(() -> generator.generate(-1))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Alias length must be positive");
     }
 }

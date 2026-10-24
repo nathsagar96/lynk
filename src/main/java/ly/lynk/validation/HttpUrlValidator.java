@@ -15,6 +15,13 @@ public class HttpUrlValidator implements ConstraintValidator<HttpUrl, String> {
 
     private static final Pattern IPV4_LITERAL = Pattern.compile("\\d{1,3}(\\.\\d{1,3}){3}");
 
+    /**
+     * Validates whether the given string is a valid absolute HTTP or HTTPS URL.
+     *
+     * @param value the URL string to validate
+     * @param context the constraint validator context
+     * @return {@code true} if value is null or a valid HTTP(S) URL, {@code false} otherwise
+     */
     @Override
     public boolean isValid(String value, ConstraintValidatorContext context) {
         if (value == null) {

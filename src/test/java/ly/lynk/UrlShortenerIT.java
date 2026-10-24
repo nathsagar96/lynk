@@ -1,6 +1,5 @@
 package ly.lynk;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.head;
@@ -9,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.jayway.jsonpath.JsonPath;
 import java.time.Instant;
 import ly.lynk.model.UrlMapping;
 import ly.lynk.repository.UrlMappingRepository;
@@ -20,6 +20,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -71,16 +72,19 @@ class UrlShortenerIT {
     @Test
     @DisplayName("a generated alias resolves to the original URL")
     void resolvesGeneratedAlias() throws Exception {
-        String alias = mockMvc.perform(post("/api/v1/urls")
+        MvcResult result = mockMvc.perform(post("/api/v1/urls")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"originalUrl":"https://example.org/page"}"""))
                 .andExpect(status().isCreated())
-                .andReturn()
-                .getResponse()
-                .getContentAsString();
+                .andExpect(jsonPath("$.originalUrl").value("https://example.org/page"))
+                .andExpect(jsonPath("$.alias").isNotEmpty())
+                .andReturn();
 
-        assertThat(alias).contains("\"alias\"");
+        String alias = JsonPath.read(result.getResponse().getContentAsString(), "$.alias");
+        mockMvc.perform(get("/" + alias))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "https://example.org/page"));
     }
 
     @Test
@@ -99,7 +103,10 @@ class UrlShortenerIT {
     @DisplayName("an expired link can no longer be resolved but its details remain available")
     void expiredLinkIsNotResolvable() throws Exception {
         repository.saveAndFlush(new UrlMapping(
-                "https://example.org/gone", "gone", Instant.now(), Instant.now().minusSeconds(60)));
+                "https://example.org/gone",
+                "gone",
+                Instant.parse("2020-01-01T00:00:00Z"),
+                Instant.parse("2020-01-02T00:00:00Z")));
 
         mockMvc.perform(get("/gone"))
                 .andExpect(status().isGone())

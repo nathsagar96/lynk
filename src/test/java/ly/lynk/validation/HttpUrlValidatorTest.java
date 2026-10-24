@@ -2,12 +2,20 @@ package ly.lynk.validation;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 class HttpUrlValidatorTest {
 
     private static final HttpUrlValidator VALIDATOR = new HttpUrlValidator();
+
+    @Test
+    @DisplayName("null values are considered valid by the validator")
+    void acceptsNull() {
+        assertThat(VALIDATOR.isValid(null, null)).isTrue();
+    }
 
     @ParameterizedTest
     @CsvSource({
@@ -33,6 +41,8 @@ class HttpUrlValidatorTest {
         "mailto:admin@example.com, false",
         "not a url, false",
         "http://, false",
+        "'', false",
+        "'   ', false",
     })
     void acceptsOrRejects(String input, boolean expectedAccepted) {
         assertThat(VALIDATOR.isValid(input, null)).isEqualTo(expectedAccepted);
