@@ -2,6 +2,7 @@ package ly.lynk.config;
 
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
+import java.util.List;
 import java.util.Set;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
@@ -18,6 +19,7 @@ import org.springframework.validation.annotation.Validated;
  * @param defaultAliasLength default length of generated Base62 aliases
  * @param maxRetryAttempts maximum retry attempts on alias collision
  * @param reservedAliases set of aliases reserved by the system
+ * @param corsAllowedOrigins allowed origin patterns for CORS requests
  */
 @Validated
 @ConfigurationProperties(prefix = "app")
@@ -29,7 +31,9 @@ public record AppProperties(
 
         @Min(1) int maxRetryAttempts,
 
-        Set<String> reservedAliases) {
+        Set<String> reservedAliases,
+
+        List<String> corsAllowedOrigins) {
 
     public AppProperties {
         if (baseUrl == null) {
@@ -42,6 +46,9 @@ public record AppProperties(
         }
         if (reservedAliases == null) {
             reservedAliases = Set.of("api", "actuator", "error");
+        }
+        if (corsAllowedOrigins == null || corsAllowedOrigins.isEmpty()) {
+            corsAllowedOrigins = List.of("http://localhost:3000", "http://localhost:5173", "http://localhost:8080");
         }
     }
 }

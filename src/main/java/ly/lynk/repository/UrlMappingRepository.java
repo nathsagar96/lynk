@@ -3,6 +3,8 @@ package ly.lynk.repository;
 import java.time.Instant;
 import java.util.Optional;
 import ly.lynk.model.UrlMapping;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -19,6 +21,15 @@ public interface UrlMappingRepository extends JpaRepository<UrlMapping, Long> {
      * @return an {@link Optional} containing the mapping if found, or empty otherwise
      */
     Optional<UrlMapping> findByAlias(String alias);
+
+    /**
+     * Finds all URL mappings owned by the given owner ID with pagination.
+     *
+     * @param ownerId the owner subject ID
+     * @param pageable pagination parameters
+     * @return a page of matching URL mappings
+     */
+    Page<UrlMapping> findByOwnerId(String ownerId, Pageable pageable);
 
     /**
      * Atomically increments the click count for the given alias.

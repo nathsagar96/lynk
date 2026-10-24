@@ -26,7 +26,7 @@ class UrlMappingRepositoryIT {
     private static final Instant CREATED_AT = Instant.parse("2026-01-01T00:00:00Z");
 
     private UrlMapping mapping(String alias, String originalUrl, Instant expiresAt) {
-        return repository.saveAndFlush(new UrlMapping(originalUrl, alias, CREATED_AT, expiresAt));
+        return repository.saveAndFlush(new UrlMapping(originalUrl, alias, CREATED_AT, expiresAt, null));
     }
 
     @Test

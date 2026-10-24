@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -82,6 +83,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(InvalidUrlException.class)
     public ResponseEntity<ProblemDetail> handleInvalidUrl(InvalidUrlException ex) {
         return problem(HttpStatus.BAD_REQUEST, "invalid-url", ex.getMessage(), "The supplied URL is not acceptable");
+    }
+
+    /**
+     * Maps {@link ForbiddenException} and {@link AccessDeniedException} to a 403 Forbidden response.
+     *
+     * @param ex the exception thrown
+     * @return 403 Forbidden problem detail
+     */
+    @ExceptionHandler({ForbiddenException.class, AccessDeniedException.class})
+    public ResponseEntity<ProblemDetail> handleForbidden(Exception ex) {
+        return problem(HttpStatus.FORBIDDEN, "forbidden", ex.getMessage(), "Forbidden");
     }
 
     /**

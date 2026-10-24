@@ -32,6 +32,9 @@ public class UrlMapping {
     @Column(name = "click_count", nullable = false)
     private long clickCount;
 
+    @Column(name = "owner_id", length = 255)
+    private String ownerId;
+
     protected UrlMapping() {}
 
     /**
@@ -41,12 +44,14 @@ public class UrlMapping {
      * @param alias the unique alias
      * @param createdAt the creation instant
      * @param expiresAt the optional expiration instant, or {@code null} if none
+     * @param ownerId the optional owner subject identifier, or {@code null} if unowned
      */
-    public UrlMapping(String originalUrl, String alias, Instant createdAt, Instant expiresAt) {
+    public UrlMapping(String originalUrl, String alias, Instant createdAt, Instant expiresAt, String ownerId) {
         this.originalUrl = originalUrl;
         this.alias = alias;
         this.createdAt = createdAt;
         this.expiresAt = expiresAt;
+        this.ownerId = ownerId;
         this.clickCount = 0L;
     }
 
@@ -102,5 +107,14 @@ public class UrlMapping {
      */
     public long getClickCount() {
         return clickCount;
+    }
+
+    /**
+     * Returns the owner subject identifier, or {@code null} if unowned.
+     *
+     * @return the owner identifier, or {@code null}
+     */
+    public String getOwnerId() {
+        return ownerId;
     }
 }

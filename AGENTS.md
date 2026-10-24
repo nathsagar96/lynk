@@ -15,10 +15,11 @@
 ## Development
 
 - The build uses Maven; always use the checked-in `./mvnw` wrapper.
-- Docker Compose supplies local development services and is invoked when the application starts.
+- Docker Compose supplies local development services (PostgreSQL and Keycloak) and is invoked when the application starts.
 - The datasource is configured by Spring Boot's Docker Compose support from `compose.yaml`; there is no explicit
   `spring.datasource.*` entry in `application.properties`, so `SPRING_DATASOURCE_*` environment variables do not
   override it.
+- Authentication uses OAuth2 Resource Server with JWTs; tests mock `JwtDecoder` to remain fast and offline.
 - Run `./mvnw clean verify` for the full suite: `*Test` classes run under Surefire, `*IT` classes run under Failsafe
   against a PostgreSQL Testcontainer.
 - Spotless (Palantir Java Format) runs as part of `verify`; use `./mvnw spotless:apply` to fix formatting.

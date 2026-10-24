@@ -11,6 +11,13 @@ import java.time.Instant;
  * @param clickCount the total recorded click count
  * @param createdAt timestamp when the alias was created
  * @param expiresAt optional expiration timestamp, or {@code null} if it does not expire
+ * @param ownerId optional owner identifier, or {@code null} if unowned
  */
 public record UrlStatsResponse(
-        String alias, String originalUrl, String shortUrl, long clickCount, Instant createdAt, Instant expiresAt) {}
+        String alias,
+        String originalUrl,
+        String shortUrl,
+        long clickCount,
+        Instant createdAt,
+        Instant expiresAt,
+        String ownerId) {}

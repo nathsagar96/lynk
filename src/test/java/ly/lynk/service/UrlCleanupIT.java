@@ -33,13 +33,13 @@ class UrlCleanupIT {
         Clock clock = Clock.fixed(now, ZoneOffset.UTC);
 
         // 5 expired, 1 future, 1 permanent
-        repository.saveAndFlush(new UrlMapping("https://e1.example", "e1", CREATED_AT, now.minusSeconds(50)));
-        repository.saveAndFlush(new UrlMapping("https://e2.example", "e2", CREATED_AT, now.minusSeconds(40)));
-        repository.saveAndFlush(new UrlMapping("https://e3.example", "e3", CREATED_AT, now.minusSeconds(30)));
-        repository.saveAndFlush(new UrlMapping("https://e4.example", "e4", CREATED_AT, now.minusSeconds(20)));
-        repository.saveAndFlush(new UrlMapping("https://e5.example", "e5", CREATED_AT, now.minusSeconds(10)));
-        repository.saveAndFlush(new UrlMapping("https://fut.example", "fut", CREATED_AT, now.plusSeconds(3600)));
-        repository.saveAndFlush(new UrlMapping("https://perm.example", "perm", CREATED_AT, null));
+        repository.saveAndFlush(new UrlMapping("https://e1.example", "e1", CREATED_AT, now.minusSeconds(50), null));
+        repository.saveAndFlush(new UrlMapping("https://e2.example", "e2", CREATED_AT, now.minusSeconds(40), null));
+        repository.saveAndFlush(new UrlMapping("https://e3.example", "e3", CREATED_AT, now.minusSeconds(30), null));
+        repository.saveAndFlush(new UrlMapping("https://e4.example", "e4", CREATED_AT, now.minusSeconds(20), null));
+        repository.saveAndFlush(new UrlMapping("https://e5.example", "e5", CREATED_AT, now.minusSeconds(10), null));
+        repository.saveAndFlush(new UrlMapping("https://fut.example", "fut", CREATED_AT, now.plusSeconds(3600), null));
+        repository.saveAndFlush(new UrlMapping("https://perm.example", "perm", CREATED_AT, null, null));
 
         // Batch size of 2, max 10 batches -> will take 3 batches (2, 2, 1)
         UrlCleanupProperties properties = new UrlCleanupProperties(2, 10);

@@ -12,6 +12,7 @@ import static org.mockito.Mockito.when;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import ly.lynk.config.AppProperties;
@@ -22,6 +23,7 @@ import ly.lynk.exception.AliasAlreadyExistsException;
 import ly.lynk.exception.AliasExpiredException;
 import ly.lynk.exception.AliasGenerationException;
 import ly.lynk.exception.AliasNotFoundException;
+import ly.lynk.exception.ForbiddenException;
 import ly.lynk.exception.InvalidUrlException;
 import ly.lynk.exception.ReservedAliasException;
 import ly.lynk.model.UrlMapping;
@@ -33,6 +35,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 @ExtendWith(MockitoExtension.class)
 class UrlShortenerServiceTest {
@@ -54,19 +59,23 @@ class UrlShortenerServiceTest {
 
     @BeforeEach
     void setUp() {
-        properties = new AppProperties(BASE_URL, 7, 3, Set.of("api", "actuator"));
+        properties = new AppProperties(BASE_URL, 7, 3, Set.of("api", "actuator"), null);
         service = new UrlShortenerService(
                 repository, writer, aliasGenerator, properties, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     private UrlMapping mapping(String alias, String originalUrl, Instant expiresAt) {
-        return new UrlMapping(originalUrl, alias, NOW, expiresAt);
+        return new UrlMapping(originalUrl, alias, NOW, expiresAt, null);
+    }
+
+    private UrlMapping ownedMapping(String alias, String originalUrl, Instant expiresAt, String ownerId) {
+        return new UrlMapping(originalUrl, alias, NOW, expiresAt, ownerId);
     }
 
     @Test
     @DisplayName("the short URL is built from the configured base URL")
     void buildsShortUrlFromConfiguredBaseUrl() {
-        properties = new AppProperties("https://lynk.dev", 7, 3, Set.of("api", "actuator"));
+        properties = new AppProperties("https://lynk.dev", 7, 3, Set.of("api", "actuator"), null);
         service = new UrlShortenerService(
                 repository, writer, aliasGenerator, properties, Clock.fixed(NOW, ZoneOffset.UTC));
         when(writer.save(any(UrlMapping.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -79,7 +88,7 @@ class UrlShortenerServiceTest {
     @Test
     @DisplayName("a trailing slash on the base URL does not produce a double slash")
     void normalizesTrailingSlashOnBaseUrl() {
-        properties = new AppProperties("https://lynk.dev/", 7, 3, Set.of("api", "actuator"));
+        properties = new AppProperties("https://lynk.dev/", 7, 3, Set.of("api", "actuator"), null);
         service = new UrlShortenerService(
                 repository, writer, aliasGenerator, properties, Clock.fixed(NOW, ZoneOffset.UTC));
         when(writer.save(any(UrlMapping.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -351,9 +360,10 @@ class UrlShortenerServiceTest {
     @Test
     @DisplayName("statistics expose the click count and the short URL")
     void returnsStats() {
-        when(repository.findByAlias("spring")).thenReturn(Optional.of(mapping("spring", "https://spring.io", null)));
+        when(repository.findByAlias("spring"))
+                .thenReturn(Optional.of(ownedMapping("spring", "https://spring.io", null, "owner-1")));
 
-        UrlStatsResponse stats = service.getStats("spring");
+        UrlStatsResponse stats = service.getStats("spring", "owner-1");
 
         assertThat(stats.alias()).isEqualTo("spring");
         assertThat(stats.shortUrl()).isEqualTo("http://localhost:8080/spring");
@@ -363,10 +373,10 @@ class UrlShortenerServiceTest {
     @Test
     @DisplayName("deleting an existing alias removes the mapping")
     void deletesExistingAlias() {
-        UrlMapping mapping = mapping("spring", "https://spring.io", null);
+        UrlMapping mapping = ownedMapping("spring", "https://spring.io", null, "owner-1");
         when(repository.findByAlias("spring")).thenReturn(Optional.of(mapping));
 
-        service.deleteUrl("spring");
+        service.deleteUrl("spring", "owner-1");
 
         verify(repository).delete(mapping);
     }
@@ -376,7 +386,93 @@ class UrlShortenerServiceTest {
     void rejectsDeleteForUnknownAlias() {
         when(repository.findByAlias("missing")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.deleteUrl("missing")).isInstanceOf(AliasNotFoundException.class);
+        assertThatThrownBy(() -> service.deleteUrl("missing", "owner-1")).isInstanceOf(AliasNotFoundException.class);
+        verify(repository, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("shortening with owner sets the ownerId in the saved entity")
+    void shortensWithOwner() {
+        when(writer.save(any(UrlMapping.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ShortenUrlResponse response =
+                service.shortenUrl(new ShortenUrlRequest("https://spring.io", "spring", null), "owner-1");
+
+        assertThat(response.ownerId()).isEqualTo("owner-1");
+    }
+
+    @Test
+    @DisplayName("retrieving user URLs delegates to repository with pagination")
+    void retrievesUserUrls() {
+        UrlMapping mapping = ownedMapping("spring", "https://spring.io", null, "owner-1");
+        when(repository.findByOwnerId("owner-1", PageRequest.of(0, 10))).thenReturn(new PageImpl<>(List.of(mapping)));
+
+        Page<ShortenUrlResponse> page = service.getUserUrls("owner-1", PageRequest.of(0, 10));
+
+        assertThat(page.getContent()).hasSize(1);
+        assertThat(page.getContent().get(0).ownerId()).isEqualTo("owner-1");
+    }
+
+    @Test
+    @DisplayName("retrieving user URLs without owner throws ForbiddenException")
+    void retrievesUserUrlsWithoutOwnerThrowsForbidden() {
+        assertThatThrownBy(() -> service.getUserUrls(null, PageRequest.of(0, 10)))
+                .isInstanceOf(ForbiddenException.class);
+        assertThatThrownBy(() -> service.getUserUrls("  ", PageRequest.of(0, 10)))
+                .isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
+    @DisplayName("public details omits ownerId for caller privacy")
+    void publicDetailsOmitsOwnerId() {
+        UrlMapping mapping = ownedMapping("spring", "https://spring.io", null, "owner-1");
+        when(repository.findByAlias("spring")).thenReturn(Optional.of(mapping));
+
+        ShortenUrlResponse details = service.getUrlDetails("spring");
+
+        assertThat(details.alias()).isEqualTo("spring");
+        assertThat(details.ownerId()).isNull();
+    }
+
+    @Test
+    @DisplayName("owner can retrieve statistics")
+    void ownerCanRetrieveStats() {
+        UrlMapping mapping = ownedMapping("spring", "https://spring.io", null, "owner-1");
+        when(repository.findByAlias("spring")).thenReturn(Optional.of(mapping));
+
+        UrlStatsResponse stats = service.getStats("spring", "owner-1");
+
+        assertThat(stats.alias()).isEqualTo("spring");
+        assertThat(stats.ownerId()).isEqualTo("owner-1");
+    }
+
+    @Test
+    @DisplayName("non-owner querying statistics throws ForbiddenException")
+    void nonOwnerStatsThrowsForbidden() {
+        UrlMapping mapping = ownedMapping("spring", "https://spring.io", null, "owner-1");
+        when(repository.findByAlias("spring")).thenReturn(Optional.of(mapping));
+
+        assertThatThrownBy(() -> service.getStats("spring", "intruder")).isInstanceOf(ForbiddenException.class);
+    }
+
+    @Test
+    @DisplayName("owner can delete URL")
+    void ownerCanDeleteUrl() {
+        UrlMapping mapping = ownedMapping("spring", "https://spring.io", null, "owner-1");
+        when(repository.findByAlias("spring")).thenReturn(Optional.of(mapping));
+
+        service.deleteUrl("spring", "owner-1");
+
+        verify(repository).delete(mapping);
+    }
+
+    @Test
+    @DisplayName("non-owner deleting URL throws ForbiddenException")
+    void nonOwnerDeleteThrowsForbidden() {
+        UrlMapping mapping = ownedMapping("spring", "https://spring.io", null, "owner-1");
+        when(repository.findByAlias("spring")).thenReturn(Optional.of(mapping));
+
+        assertThatThrownBy(() -> service.deleteUrl("spring", "intruder")).isInstanceOf(ForbiddenException.class);
         verify(repository, never()).delete(any());
     }
 }

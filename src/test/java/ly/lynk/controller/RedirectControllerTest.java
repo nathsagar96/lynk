@@ -12,6 +12,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import ly.lynk.TestSecurityConfiguration;
+import ly.lynk.config.SecurityConfig;
 import ly.lynk.exception.AliasExpiredException;
 import ly.lynk.exception.AliasNotFoundException;
 import ly.lynk.service.UrlShortenerService;
@@ -19,11 +21,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(RedirectController.class)
+@Import({SecurityConfig.class, TestSecurityConfiguration.class})
 class RedirectControllerTest {
 
     @Autowired

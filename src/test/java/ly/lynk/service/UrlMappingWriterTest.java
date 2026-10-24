@@ -25,7 +25,7 @@ class UrlMappingWriterTest {
     @DisplayName("save delegates to repository saveAndFlush and returns the persisted mapping")
     void saveDelegatesToSaveAndFlush() {
         UrlMappingWriter writer = new UrlMappingWriter(repository);
-        UrlMapping mapping = new UrlMapping("https://spring.io", "spring", CREATED_AT, null);
+        UrlMapping mapping = new UrlMapping("https://spring.io", "spring", CREATED_AT, null, null);
         when(repository.saveAndFlush(mapping)).thenReturn(mapping);
 
         UrlMapping result = writer.save(mapping);

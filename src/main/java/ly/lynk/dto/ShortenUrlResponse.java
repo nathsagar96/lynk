@@ -10,6 +10,7 @@ import java.time.Instant;
  * @param shortUrl the fully-qualified public short URL
  * @param createdAt timestamp when the alias was created
  * @param expiresAt optional expiration timestamp, or {@code null} if it does not expire
+ * @param ownerId optional owner identifier, or {@code null} if unowned / omitted for privacy
  */
 public record ShortenUrlResponse(
-        String alias, String originalUrl, String shortUrl, Instant createdAt, Instant expiresAt) {}
+        String alias, String originalUrl, String shortUrl, Instant createdAt, Instant expiresAt, String ownerId) {}
