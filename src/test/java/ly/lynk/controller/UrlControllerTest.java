@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.head;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -299,6 +300,16 @@ class UrlControllerTest {
     }
 
     @Test
+    @DisplayName("HEAD metadata request without authentication returns 200")
+    void allowsUnauthenticatedHeadOnDetails() throws Exception {
+        when(service.getUrlDetails("spring"))
+                .thenReturn(new ShortenUrlResponse(
+                        "spring", "https://spring.io", "http://localhost:8080/spring", NOW, null, null));
+
+        mockMvc.perform(head("/api/v1/urls/spring")).andExpect(status().isOk());
+    }
+
+    @Test
     @DisplayName("listing owned URLs without authentication returns 401")
     void rejectsUnauthenticatedListing() throws Exception {
         mockMvc.perform(get("/api/v1/urls")).andExpect(status().isUnauthorized());
@@ -407,6 +418,22 @@ class UrlControllerTest {
                         .header("Access-Control-Request-Method", "POST"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3000"));
+    }
+
+    @Test
+    @DisplayName("CORS responses expose the Location header to browser clients")
+    void exposesLocationHeaderToCorsClients() throws Exception {
+        when(service.shortenUrl(any(ShortenUrlRequest.class), any())).thenReturn(response("spring"));
+
+        mockMvc.perform(post("/api/v1/urls")
+                        .header("Origin", "http://localhost:3000")
+                        .with(jwt().jwt(builder -> builder.subject(USER_ID)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                        {"originalUrl":"https://spring.io","customAlias":"spring"}"""))
+                .andExpect(status().isCreated())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3000"))
+                .andExpect(header().string("Access-Control-Expose-Headers", "Location"));
     }
 
     @Test

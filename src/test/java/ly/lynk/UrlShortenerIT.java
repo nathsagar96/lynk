@@ -76,6 +76,9 @@ class UrlShortenerIT {
         // 5. Public HEAD and GET redirects work without authentication
         mockMvc.perform(head("/spring")).andExpect(status().isFound());
 
+        // Public HEAD metadata inspection works without authentication
+        mockMvc.perform(head("/api/v1/urls/spring")).andExpect(status().isOk());
+
         mockMvc.perform(get("/spring").queryParam("source", "test"))
                 .andExpect(status().isFound())
                 .andExpect(header().string("Location", "https://spring.io/projects/spring-boot?source=test"));

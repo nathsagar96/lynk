@@ -20,6 +20,8 @@
   `spring.datasource.*` entry in `application.properties`, so `SPRING_DATASOURCE_*` environment variables do not
   override it.
 - Authentication uses OAuth2 Resource Server with JWTs; tests mock `JwtDecoder` to remain fast and offline.
+- `@WebMvcTest` slices that import `SecurityConfig` must register `AppProperties` themselves (see
+  `TestSecurityConfiguration`), because slice contexts skip the application's `@ConfigurationPropertiesScan`.
 - Run `./mvnw clean verify` for the full suite: `*Test` classes run under Surefire, `*IT` classes run under Failsafe
   against a PostgreSQL Testcontainer.
 - Spotless (Palantir Java Format) runs as part of `verify`; use `./mvnw spotless:apply` to fix formatting.

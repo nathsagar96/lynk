@@ -1,9 +1,9 @@
 package ly.lynk.config;
 
 import java.util.List;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -18,7 +18,6 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 /** Configures HTTP security, OAuth2 resource server JWT validation, and CORS policies. */
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties(AppProperties.class)
 public class SecurityConfig {
 
     private final AppProperties properties;
@@ -50,20 +49,14 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/urls/{alias}")
                         .permitAll()
+                        .requestMatchers(HttpMethod.HEAD, "/api/v1/urls/{alias}")
+                        .permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/urls/{alias}/qr")
                         .permitAll()
                         .requestMatchers(HttpMethod.HEAD, "/api/v1/urls/{alias}/qr")
                         .permitAll()
                         .requestMatchers("/actuator/health/**", "/actuator/info")
                         .permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/urls")
-                        .authenticated()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/urls")
-                        .authenticated()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/urls/{alias}/stats")
-                        .authenticated()
-                        .requestMatchers(HttpMethod.DELETE, "/api/v1/urls/{alias}")
-                        .authenticated()
                         .anyRequest()
                         .authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
@@ -81,6 +74,7 @@ public class SecurityConfig {
         config.setAllowedOriginPatterns(properties.corsAllowedOrigins());
         config.setAllowedMethods(List.of("GET", "POST", "DELETE", "OPTIONS", "HEAD"));
         config.setAllowedHeaders(List.of("*"));
+        config.setExposedHeaders(List.of(HttpHeaders.LOCATION));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;

@@ -16,6 +16,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Stream;
 import ly.lynk.config.AppProperties;
 import ly.lynk.dto.QrCodePayload;
 import ly.lynk.dto.ShortenUrlRequest;
@@ -34,6 +35,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -46,6 +50,7 @@ class UrlShortenerServiceTest {
 
     private static final Instant NOW = Instant.parse("2026-01-01T00:00:00Z");
     private static final String BASE_URL = "http://localhost:8080";
+    private static final String OWNER_ID = "owner-1";
 
     @Mock
     private UrlMappingRepository repository;
@@ -69,6 +74,16 @@ class UrlShortenerServiceTest {
                 repository, writer, aliasGenerator, qrCodeService, properties, Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
+    private UrlShortenerService serviceForBaseUrl(String baseUrl) {
+        return new UrlShortenerService(
+                repository,
+                writer,
+                aliasGenerator,
+                qrCodeService,
+                new AppProperties(baseUrl, 7, 3, Set.of("api", "actuator"), null),
+                Clock.fixed(NOW, ZoneOffset.UTC));
+    }
+
     private UrlMapping mapping(String alias, String originalUrl, Instant expiresAt) {
         return new UrlMapping(originalUrl, alias, NOW, expiresAt, null);
     }
@@ -85,7 +100,8 @@ class UrlShortenerServiceTest {
                 repository, writer, aliasGenerator, qrCodeService, properties, Clock.fixed(NOW, ZoneOffset.UTC));
         when(writer.save(any(UrlMapping.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        ShortenUrlResponse response = service.shortenUrl(new ShortenUrlRequest("https://spring.io", "spring", null));
+        ShortenUrlResponse response =
+                service.shortenUrl(new ShortenUrlRequest("https://spring.io", "spring", null), OWNER_ID);
 
         assertThat(response.shortUrl()).isEqualTo("https://lynk.dev/spring");
     }
@@ -98,7 +114,8 @@ class UrlShortenerServiceTest {
                 repository, writer, aliasGenerator, qrCodeService, properties, Clock.fixed(NOW, ZoneOffset.UTC));
         when(writer.save(any(UrlMapping.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        ShortenUrlResponse response = service.shortenUrl(new ShortenUrlRequest("https://spring.io", "spring", null));
+        ShortenUrlResponse response =
+                service.shortenUrl(new ShortenUrlRequest("https://spring.io", "spring", null), OWNER_ID);
 
         assertThat(response.shortUrl()).isEqualTo("https://lynk.dev/spring");
     }
@@ -108,7 +125,8 @@ class UrlShortenerServiceTest {
     void shortensWithCustomAlias() {
         when(writer.save(any(UrlMapping.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        ShortenUrlResponse response = service.shortenUrl(new ShortenUrlRequest("https://spring.io", "spring", null));
+        ShortenUrlResponse response =
+                service.shortenUrl(new ShortenUrlRequest("https://spring.io", "spring", null), OWNER_ID);
 
         assertThat(response.alias()).isEqualTo("spring");
         assertThat(response.originalUrl()).isEqualTo("https://spring.io");
@@ -123,7 +141,8 @@ class UrlShortenerServiceTest {
     void trimsOriginalUrl() {
         when(writer.save(any(UrlMapping.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        ShortenUrlResponse response = service.shortenUrl(new ShortenUrlRequest("  https://spring.io  ", null, null));
+        ShortenUrlResponse response =
+                service.shortenUrl(new ShortenUrlRequest("  https://spring.io  ", null, null), OWNER_ID);
 
         assertThat(response.originalUrl()).isEqualTo("https://spring.io");
     }
@@ -134,7 +153,8 @@ class UrlShortenerServiceTest {
         when(aliasGenerator.generate(7)).thenReturn("a1b2c3d");
         when(writer.save(any(UrlMapping.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        ShortenUrlResponse response = service.shortenUrl(new ShortenUrlRequest("https://spring.io", null, null));
+        ShortenUrlResponse response =
+                service.shortenUrl(new ShortenUrlRequest("https://spring.io", null, null), OWNER_ID);
 
         assertThat(response.alias()).isEqualTo("a1b2c3d");
         verify(aliasGenerator).generate(7);
@@ -143,7 +163,7 @@ class UrlShortenerServiceTest {
     @Test
     @DisplayName("a reserved alias is rejected")
     void rejectsReservedAlias() {
-        assertThatThrownBy(() -> service.shortenUrl(new ShortenUrlRequest("https://spring.io", "api", null)))
+        assertThatThrownBy(() -> service.shortenUrl(new ShortenUrlRequest("https://spring.io", "api", null), OWNER_ID))
                 .isInstanceOf(ReservedAliasException.class);
         verify(writer, never()).save(any());
     }
@@ -153,7 +173,7 @@ class UrlShortenerServiceTest {
     void rejectsExistingAlias() {
         when(writer.save(any(UrlMapping.class))).thenThrow(new DataIntegrityViolationException("dup"));
 
-        assertThatThrownBy(() -> service.shortenUrl(new ShortenUrlRequest("https://spring.io", "race", null)))
+        assertThatThrownBy(() -> service.shortenUrl(new ShortenUrlRequest("https://spring.io", "race", null), OWNER_ID))
                 .isInstanceOf(AliasAlreadyExistsException.class);
     }
 
@@ -165,7 +185,8 @@ class UrlShortenerServiceTest {
                 .thenThrow(new DataIntegrityViolationException("dup"))
                 .thenAnswer(inv -> inv.getArgument(0));
 
-        ShortenUrlResponse response = service.shortenUrl(new ShortenUrlRequest("https://spring.io", null, null));
+        ShortenUrlResponse response =
+                service.shortenUrl(new ShortenUrlRequest("https://spring.io", null, null), OWNER_ID);
 
         assertThat(response.alias()).isEqualTo("unique01");
         verify(aliasGenerator, times(2)).generate(7);
@@ -177,28 +198,64 @@ class UrlShortenerServiceTest {
         when(aliasGenerator.generate(7)).thenReturn("collide");
         when(writer.save(any(UrlMapping.class))).thenThrow(new DataIntegrityViolationException("dup"));
 
-        assertThatThrownBy(() -> service.shortenUrl(new ShortenUrlRequest("https://spring.io", null, null)))
+        assertThatThrownBy(() -> service.shortenUrl(new ShortenUrlRequest("https://spring.io", null, null), OWNER_ID))
                 .isInstanceOf(AliasGenerationException.class);
         verify(aliasGenerator, times(3)).generate(7);
     }
 
-    @Test
-    @DisplayName("a URL pointing back to its own short URL is rejected")
-    void rejectsSelfReferencingUrl() {
-        assertThatThrownBy(() -> service.shortenUrl(new ShortenUrlRequest("http://localhost:8080/self", "self", null)))
-                .isInstanceOf(InvalidUrlException.class);
-        assertThatThrownBy(() -> service.shortenUrl(new ShortenUrlRequest("http://localhost:8080/self/", "self", null)))
-                .isInstanceOf(InvalidUrlException.class);
-        assertThatThrownBy(() ->
-                        service.shortenUrl(new ShortenUrlRequest("http://localhost:8080/self?query=1", "self", null)))
-                .isInstanceOf(InvalidUrlException.class);
-        assertThatThrownBy(() ->
-                        service.shortenUrl(new ShortenUrlRequest("http://localhost:8080/self#frag", "self", null)))
-                .isInstanceOf(InvalidUrlException.class);
-        assertThatThrownBy(() ->
-                        service.shortenUrl(new ShortenUrlRequest("http://localhost:8080/without-alias", null, null)))
+    static Stream<Arguments> selfReferencingUrls() {
+        return Stream.of(
+                Arguments.of(BASE_URL, "http://localhost:8080/self"),
+                Arguments.of(BASE_URL, "http://localhost:8080/self/"),
+                Arguments.of(BASE_URL, "http://localhost:8080/self?query=1"),
+                Arguments.of(BASE_URL, "http://localhost:8080/self#frag"),
+                Arguments.of(BASE_URL, "http://localhost:8080/without-alias"),
+                Arguments.of(BASE_URL, "http://LOCALHOST:8080/self"),
+                Arguments.of(BASE_URL, "http://localhost.:8080/self"),
+                Arguments.of(BASE_URL, "https://localhost:8080/self"),
+                Arguments.of("https://lynk.dev", "http://lynk.dev/self"),
+                Arguments.of("https://lynk.dev", "HTTP://lynk.dev/self"),
+                Arguments.of("https://lynk.dev", "https://lynk.dev:443/self"),
+                Arguments.of("https://lynk.dev", "https://lynk.dev:0443/self"),
+                Arguments.of("https://lynk.dev", "http://lynk.dev:80/self"),
+                Arguments.of("https://lynk.dev", "https://LYNK.DEV.:443/self"),
+                Arguments.of("https://lynk.dev/app", "https://lynk.dev/app"),
+                Arguments.of("https://lynk.dev/app", "https://lynk.dev/app/x"),
+                Arguments.of("https://lynk.dev/app", "https://lynk.dev/app?query=1"));
+    }
+
+    @ParameterizedTest(name = "base {0} rejects {1}")
+    @MethodSource("selfReferencingUrls")
+    @DisplayName("a URL pointing back to its own short URL is rejected in any equivalent form")
+    void rejectsSelfReferencingUrl(String baseUrl, String targetUrl) {
+        UrlShortenerService subject = serviceForBaseUrl(baseUrl);
+
+        assertThatThrownBy(() -> subject.shortenUrl(new ShortenUrlRequest(targetUrl, "self", null), OWNER_ID))
                 .isInstanceOf(InvalidUrlException.class);
         verify(writer, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("URLs outside the short URL origin are allowed")
+    void allowsNonSelfReferencingUrls() {
+        when(writer.save(any(UrlMapping.class))).thenAnswer(inv -> inv.getArgument(0));
+        UrlShortenerService httpsService = serviceForBaseUrl("https://lynk.dev");
+
+        assertThat(httpsService
+                        .shortenUrl(new ShortenUrlRequest("https://spring.io", "spring", null), OWNER_ID)
+                        .alias())
+                .isEqualTo("spring");
+        assertThat(httpsService
+                        .shortenUrl(new ShortenUrlRequest("https://lynk.dev:8443/self", "port8443", null), OWNER_ID)
+                        .alias())
+                .isEqualTo("port8443");
+        assertThat(service.shortenUrl(new ShortenUrlRequest("http://localhost/self", "port80", null), OWNER_ID)
+                        .alias())
+                .isEqualTo("port80");
+        assertThat(serviceForBaseUrl("https://lynk.dev/app")
+                        .shortenUrl(new ShortenUrlRequest("https://lynk.dev/other", "other", null), OWNER_ID)
+                        .alias())
+                .isEqualTo("other");
     }
 
     @Test
@@ -207,7 +264,8 @@ class UrlShortenerServiceTest {
         when(aliasGenerator.generate(7)).thenReturn("api", "unique01");
         when(writer.save(any(UrlMapping.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        ShortenUrlResponse response = service.shortenUrl(new ShortenUrlRequest("https://spring.io", null, null));
+        ShortenUrlResponse response =
+                service.shortenUrl(new ShortenUrlRequest("https://spring.io", null, null), OWNER_ID);
 
         assertThat(response.alias()).isEqualTo("unique01");
         verify(aliasGenerator, times(2)).generate(7);
@@ -216,9 +274,10 @@ class UrlShortenerServiceTest {
     @Test
     @DisplayName("a custom alias that matches a reserved alias case-insensitively is rejected")
     void rejectsCaseInsensitiveReservedAlias() {
-        assertThatThrownBy(() -> service.shortenUrl(new ShortenUrlRequest("https://spring.io", "API", null)))
+        assertThatThrownBy(() -> service.shortenUrl(new ShortenUrlRequest("https://spring.io", "API", null), OWNER_ID))
                 .isInstanceOf(ReservedAliasException.class);
-        assertThatThrownBy(() -> service.shortenUrl(new ShortenUrlRequest("https://spring.io", "Actuator", null)))
+        assertThatThrownBy(() ->
+                        service.shortenUrl(new ShortenUrlRequest("https://spring.io", "Actuator", null), OWNER_ID))
                 .isInstanceOf(ReservedAliasException.class);
     }
 
@@ -229,7 +288,7 @@ class UrlShortenerServiceTest {
         when(writer.save(any(UrlMapping.class))).thenAnswer(inv -> inv.getArgument(0));
 
         ShortenUrlResponse response =
-                service.shortenUrl(new ShortenUrlRequest("https://spring.io", "spring", expiresAt));
+                service.shortenUrl(new ShortenUrlRequest("https://spring.io", "spring", expiresAt), OWNER_ID);
 
         assertThat(response.alias()).isEqualTo("spring");
         assertThat(response.expiresAt()).isEqualTo(expiresAt);
@@ -401,9 +460,9 @@ class UrlShortenerServiceTest {
         when(writer.save(any(UrlMapping.class))).thenAnswer(inv -> inv.getArgument(0));
 
         ShortenUrlResponse response =
-                service.shortenUrl(new ShortenUrlRequest("https://spring.io", "spring", null), "owner-1");
+                service.shortenUrl(new ShortenUrlRequest("https://spring.io", "spring", null), OWNER_ID);
 
-        assertThat(response.ownerId()).isEqualTo("owner-1");
+        assertThat(response.ownerId()).isEqualTo(OWNER_ID);
     }
 
     @Test

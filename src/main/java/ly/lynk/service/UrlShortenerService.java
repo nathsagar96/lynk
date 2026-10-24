@@ -1,5 +1,7 @@
 package ly.lynk.service;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -186,16 +188,6 @@ public class UrlShortenerService {
     }
 
     /**
-     * Creates a shortened URL mapping using a custom or auto-generated alias for an unauthenticated request.
-     *
-     * @param request the shorten request containing original URL and optional alias/expiry
-     * @return response with the created mapping details
-     */
-    public ShortenUrlResponse shortenUrl(ShortenUrlRequest request) {
-        return shortenUrl(request, null);
-    }
-
-    /**
      * Creates a shortened URL mapping with an owner.
      *
      * @param request the shorten request containing original URL and optional alias/expiry
@@ -294,12 +286,72 @@ public class UrlShortenerService {
         if (originalUrl == null || originalUrl.isBlank()) {
             return false;
         }
-        String lower = originalUrl.toLowerCase(Locale.ROOT);
-        String base = properties.baseUrl().toLowerCase(Locale.ROOT);
-        return lower.equals(base)
-                || lower.startsWith(base + "/")
-                || lower.startsWith(base + "?")
-                || lower.startsWith(base + "#");
+        URI target = parseUri(originalUrl);
+        URI base = parseUri(properties.baseUrl());
+        if (target == null || base == null) {
+            return false;
+        }
+        String targetHost = normalizeHost(target);
+        if (targetHost == null || !targetHost.equals(normalizeHost(base))) {
+            return false;
+        }
+        return normalizedPort(target) == normalizedPort(base) && isUnderBasePath(target, base);
+    }
+
+    private static URI parseUri(String value) {
+        try {
+            return new URI(value);
+        } catch (URISyntaxException e) {
+            return null;
+        }
+    }
+
+    /** Normalizes a URI host by lowercasing it and removing any trailing root-label dots. */
+    private static String normalizeHost(URI uri) {
+        String host = uri.getHost();
+        if (host == null) {
+            return null;
+        }
+        host = host.toLowerCase(Locale.ROOT);
+        int end = host.length();
+        while (end > 0 && host.charAt(end - 1) == '.') {
+            end--;
+        }
+        return end == 0 ? null : host.substring(0, end);
+    }
+
+    /**
+     * Returns the explicit port, or {@code -1} when the port is absent or equal to the scheme default.
+     *
+     * <p>Collapsing scheme defaults lets {@code https://host} and {@code http://host} share an origin
+     * for self-reference purposes.
+     */
+    private static int normalizedPort(URI uri) {
+        int port = uri.getPort();
+        if (port == -1) {
+            return -1;
+        }
+        return port == defaultPort(uri.getScheme()) ? -1 : port;
+    }
+
+    private static int defaultPort(String scheme) {
+        if ("http".equalsIgnoreCase(scheme)) {
+            return 80;
+        }
+        if ("https".equalsIgnoreCase(scheme)) {
+            return 443;
+        }
+        return -1;
+    }
+
+    /** Returns whether the target path is the base path or a descendant of it. */
+    private static boolean isUnderBasePath(URI target, URI base) {
+        String basePath = base.getPath();
+        if (basePath == null || basePath.isEmpty() || "/".equals(basePath)) {
+            return true;
+        }
+        String targetPath = target.getPath() == null ? "" : target.getPath();
+        return targetPath.equals(basePath) || targetPath.startsWith(basePath + "/");
     }
 
     private void assertOwnership(UrlMapping mapping, String currentUserId) {
