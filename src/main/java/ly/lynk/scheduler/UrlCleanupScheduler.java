@@ -1,6 +1,7 @@
 package ly.lynk.scheduler;
 
 import ly.lynk.service.UrlCleanupService;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -27,6 +28,10 @@ public class UrlCleanupScheduler {
 
     /** Triggers the periodic expired URL purge. */
     @Scheduled(cron = "${app.cleanup.cron:0 0 * * * *}")
+    @SchedulerLock(
+            name = "UrlCleanupScheduler_purgeExpiredUrls",
+            lockAtMostFor = "${app.cleanup.lock-at-most-for:10m}",
+            lockAtLeastFor = "${app.cleanup.lock-at-least-for:1m}")
     public void scheduleCleanup() {
         log.debug("Starting scheduled expired URL cleanup");
         cleanupService.purgeExpiredUrls();

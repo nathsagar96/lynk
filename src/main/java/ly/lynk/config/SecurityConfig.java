@@ -55,7 +55,7 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers(HttpMethod.HEAD, "/api/v1/urls/{alias}/qr")
                         .permitAll()
-                        .requestMatchers("/actuator/health/**", "/actuator/info")
+                        .requestMatchers("/actuator/health/**", "/actuator/info", "/actuator/prometheus")
                         .permitAll()
                         .anyRequest()
                         .authenticated())
