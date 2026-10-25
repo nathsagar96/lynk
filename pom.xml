@@ -20,7 +20,7 @@
         <java.version>25</java.version>
         <shedlock.version>7.10.1</shedlock.version>
         <spotless-maven-plugin.version>3.10.4</spotless-maven-plugin.version>
-        <zxing.version>3.5.3</zxing.version>
+        <zxing.version>3.5.4</zxing.version>
     </properties>
 
     <dependencies>
